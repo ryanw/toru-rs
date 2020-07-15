@@ -30,7 +30,7 @@ impl<'a> DrawContext<'a> {
 	pub fn clear(&mut self) {
 		self.buffer.fill(Color::rgba(0, 0, 0, 0));
 		let (w, h) = self.buffer.size();
-		*self.depth = vec![f32::INFINITY; w as usize * h as usize];
+		*self.depth = vec![std::f32::INFINITY; w as usize * h as usize];
 	}
 
 	fn world_to_view(&self, p: &na::Point3<f32>) -> na::Point3<f32> {
@@ -342,7 +342,7 @@ pub struct Canvas {
 impl Canvas {
 	pub fn new(width: u32, height: u32, callback: impl FnMut(&mut DrawContext, f32) + 'static) -> Self {
 		let buffer = Buffer::new(width, height);
-		let depth = vec![f32::INFINITY; width as usize * height as usize];
+		let depth = vec![std::f32::INFINITY; width as usize * height as usize];
 
 		Self {
 			last_tick_at: Instant::now(),
@@ -397,12 +397,12 @@ impl Canvas {
 		}
 
 		self.buffer.resize(w, h);
-		self.depth = vec![f32::INFINITY; w as usize * h as usize];
+		self.depth = vec![std::f32::INFINITY; w as usize * h as usize];
 	}
 
 	pub fn fill(&mut self, color: Color) {
 		self.buffer.fill(color);
 		let (w, h) = self.buffer.size();
-		self.depth = vec![f32::INFINITY; w as usize * h as usize];
+		self.depth = vec![std::f32::INFINITY; w as usize * h as usize];
 	}
 }

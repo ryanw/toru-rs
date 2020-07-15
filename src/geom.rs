@@ -1,4 +1,4 @@
-pub const INFINITY: i32 = i32::MAX;
+pub const INFINITY: i32 = std::i32::MAX;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Rect {
