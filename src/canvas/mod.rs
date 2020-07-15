@@ -260,7 +260,7 @@ impl<'a> DrawContext<'a> {
 				dot = 0.1;
 			}
 
-			let mut color = mesh.color().unwrap_or(Color::rgb(200, 0, 0));
+			let mut color = tri.color.unwrap_or(Color::rgb(200, 0, 0));
 
 			// Adjust color lighting
 			color.r = (color.r as f32 * dot) as u8;

@@ -15,10 +15,6 @@ impl Mesh for Terrain {
 	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
 		Box::new(TerrainIterator::new(self))
 	}
-
-	fn color(&self) -> Option<Color> {
-		Some(Color::rgb(100, 255, 0))
-	}
 }
 
 impl Terrain {
