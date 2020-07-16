@@ -286,7 +286,7 @@ impl<'a> DrawContext<'a> {
 					let view_normal = view.transform_vector(&world_normal).normalize();
 					let _screen_normal = proj.transform_vector(&view_normal).normalize();
 
-					let color = Color::rgba(255, 0, 0, 255);
+					let color = Color::rgba(0, 100, 255, 255);
 					let p0 = na::Point3::from_coordinates(
 						(world_tri.points[0].coords + world_tri.points[1].coords + world_tri.points[2].coords) / 3.0,
 					);

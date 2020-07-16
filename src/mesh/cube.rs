@@ -13,10 +13,6 @@ impl Mesh for Cube {
 	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
 		Box::new(CubeIterator::new(self))
 	}
-
-	fn color(&self) -> Option<Color> {
-		Some(self.color)
-	}
 }
 
 impl Cube {
@@ -64,7 +60,7 @@ impl<'a> Iterator for CubeIterator<'a> {
 		let s = self.cube.size;
 		let p = 1.0 + self.space;
 
-		let tri = match self.current {
+		let mut tri = match self.current {
 			// Near
 			0 => Triangle::new(
 				na::Point3::new(-s, -s, -s * p),
@@ -133,6 +129,8 @@ impl<'a> Iterator for CubeIterator<'a> {
 			),
 			_ => return None,
 		};
+
+		tri.color = Some(self.cube.color);
 
 		self.current += 1;
 		Some(tri)
