@@ -234,7 +234,7 @@ impl<'a> DrawContext<'a> {
 	}
 
 	pub fn draw_mesh(&mut self, mesh: &dyn Mesh, camera: &Camera) {
-		let light_dir = na::Vector3::new(0.8, 0.3, 0.2).normalize();
+		let light_dir = na::Vector3::new(0.8, 0.3, 0.8).normalize();
 		let model = self.transform;
 		let view = camera.view();
 		let proj = camera.projection();
