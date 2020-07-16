@@ -1,9 +1,9 @@
 use mutunga::{Cell, Color as TermColor, Event, MouseButton, TerminalCanvas};
 use nalgebra as na;
 use std::f32::consts::PI;
-use std::{thread, time};
-use toru::{Mesh, Camera, Canvas, Color, Cube, DrawContext};
 use std::sync::{Arc, Mutex};
+use std::{thread, time};
+use toru::{Camera, Canvas, Color, DrawContext, Mesh, StaticMesh};
 
 struct MouseScene {
 	mouse_down: bool,
@@ -17,7 +17,8 @@ struct MouseScene {
 impl MouseScene {
 	pub fn update(&mut self, dt: f32) {
 		if !self.mouse_down {
-			self.transform = na::Matrix4::from_euler_angles(self.velocity.1 * dt, self.velocity.0 * dt, 0.0) * self.transform;
+			self.transform =
+				na::Matrix4::from_euler_angles(self.velocity.1 * dt, self.velocity.0 * dt, 0.0) * self.transform;
 			self.velocity.0 *= 1.0 - (0.5 * dt);
 			self.velocity.1 *= 1.0 - (0.5 * dt);
 			if self.velocity.0.abs() < 0.1 {
@@ -42,14 +43,16 @@ fn main() {
 	let width = term.width();
 	let height = term.height();
 
+	let transform = na::Matrix4::from_euler_angles(PI, 0.0, 0.0) * na::Matrix4::new_scaling(1.5);
+
 	// Create a scene with just a single mesh.
 	let mut scene = Arc::new(Mutex::new(MouseScene {
 		mouse_down: false,
 		mouse_origin: (0, 0),
 		velocity: (0.0, 0.0),
-		transform: na::Matrix4::identity(),
+		transform,
 		camera: Camera::new(width as _, height as _),
-		mesh: Box::new(Cube::new(1.0, Color::rgb(190, 255, 0))),
+		mesh: Box::new(StaticMesh::load_obj("examples/assets/suzanne.obj").expect("Unable to open mesh file")),
 	}));
 
 	// Init the 3D canvas
