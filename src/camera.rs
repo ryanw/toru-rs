@@ -78,6 +78,10 @@ impl Camera {
 		self.position = rot.transform_point(&(trans * inv_rot).transform_point(&self.position));
 	}
 
+	pub fn translate_absolute(&mut self, v: &na::Vector3<f32>) {
+		self.position = na::Matrix4::new_translation(v).transform_point(&self.position);
+	}
+
 	pub fn rotate(&mut self, v: &na::Vector3<f32>) {
 		self.rotation += v;
 	}
