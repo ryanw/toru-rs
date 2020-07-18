@@ -100,6 +100,9 @@ impl Line {
 	pub fn new(start: na::Point3<f32>, end: na::Point3<f32>) -> Self {
 		Line { start, end }
 	}
+	pub fn length(&self) -> f32 {
+		(self.end.coords - self.start.coords).norm()
+	}
 
 	pub fn intersects_plane(&self, plane: &Plane) -> na::Point3<f32> {
 		let plane_dot = plane.dot();

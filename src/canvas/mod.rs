@@ -291,8 +291,9 @@ impl<'a> DrawContext<'a> {
 					);
 					let p1 = na::Matrix4::new_translation(&(world_normal * -0.3)).transform_point(&p0);
 					let line = Line::new((proj * view).transform_point(&p0), (proj * view).transform_point(&p1));
-
-					self.wire_line(&line, &color);
+					if line.length().abs() < 1.0 {
+						self.wire_line(&line, &color);
+					}
 				}
 			}
 		}
