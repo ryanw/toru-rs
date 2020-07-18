@@ -1,20 +1,38 @@
 use crate::color::Color;
 use crate::geom::Rect;
+use std::mem::size_of;
 
-#[derive(Default, Clone, Debug)]
-pub struct Buffer {
-	width: u32,
-	height: u32,
-	pixels: Vec<Color>,
+pub trait Blendable: Default + Copy + PartialEq {
+	fn blend(&self, other: &Self) -> Self {
+		self.clone()
+	}
 }
 
-pub struct BufferRegion<'a> {
-	pub(crate) buffer: &'a mut Buffer,
+impl Blendable for f32 {
+	fn blend(&self, other: &f32) -> f32 {
+		if other < self {
+			self.clone()
+		}
+		else {
+			other.clone()
+		}
+	}
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct Buffer<T: Blendable> {
+	width: u32,
+	height: u32,
+	data: Vec<T>,
+}
+
+pub struct BufferRegion<'a, T: Blendable> {
+	pub(crate) buffer: &'a mut Buffer<T>,
 	pub(crate) rect: Rect,
 }
 
-impl<'a> BufferRegion<'a> {
-	pub fn region_mut(&mut self, rect: Rect) -> BufferRegion {
+impl<'a, T: Blendable> BufferRegion<'a, T> {
+	pub fn region_mut(&mut self, rect: Rect) -> BufferRegion<T> {
 		BufferRegion {
 			buffer: self.buffer,
 			rect: Rect::new(rect.x + self.rect.x, rect.y + self.rect.y, rect.width, rect.height),
@@ -34,55 +52,73 @@ impl<'a> BufferRegion<'a> {
 	}
 
 	pub fn clear(&mut self) {
-		self.fill(Color::transparent());
+		self.fill(T::default());
 	}
 
-	pub fn fill(&mut self, pixel: Color) {
+	pub fn fill(&mut self, pixel: T) {
 		self.fill_rect(pixel, &Rect::new(0, 0, self.rect.width, self.rect.height));
 	}
 
-	pub fn fill_rect(&mut self, pixel: Color, rect: &Rect) {
+	pub fn fill_rect(&mut self, pixel: T, rect: &Rect) {
 		let mut rect = rect.clone();
 		rect.x += self.rect.x;
 		rect.y += self.rect.y;
 		self.buffer.fill_rect(pixel, &rect);
 	}
 
-	pub fn draw_buffer(&mut self, x: i32, y: i32, buffer: &Buffer) {
+	pub fn draw_buffer(&mut self, x: i32, y: i32, buffer: &Buffer<T>) {
 		// FIXME clip inside region
 		self.buffer.draw_buffer(x + self.rect.x, y + self.rect.y, buffer);
 	}
 }
 
-impl Buffer {
+impl<T: Blendable> Buffer<T> {
 	pub fn new(width: u32, height: u32) -> Self {
+		Self::new_with_value(T::default(), width, height)
+	}
+
+	pub fn new_with_value(value: T, width: u32, height: u32) -> Self {
 		let mut buffer = Buffer::default();
 		buffer.resize(width, height);
+		buffer.fill(value);
 		buffer
 	}
 
-	pub fn region_mut(&mut self, rect: Rect) -> BufferRegion {
+	pub fn as_slice(&self) -> &[T] {
+		self.data.as_slice()
+	}
+
+	pub fn as_bytes(&self) -> &[u8] {
+		let bytes_per_item = size_of::<T>();
+		let byte_size = self.data.len() * bytes_per_item;
+		unsafe {
+			let bytes = self.data.as_slice().as_ptr() as *const _;
+			std::slice::from_raw_parts(bytes, byte_size)
+		}
+	}
+
+	pub fn region_mut(&mut self, rect: Rect) -> BufferRegion<T> {
 		BufferRegion { buffer: self, rect }
 	}
 
-	pub fn as_region_mut(&mut self) -> BufferRegion {
+	pub fn as_region_mut(&mut self) -> BufferRegion<T> {
 		self.region_mut(Rect::new(0, 0, self.width as i32, self.height as i32))
 	}
 
 	pub fn clear(&mut self) {
-		self.fill(Color::transparent());
+		self.fill(T::default());
 	}
 
-	pub fn fill(&mut self, pixel: Color) {
-		self.pixels = vec![pixel; self.width as usize * self.height as usize];
+	pub fn fill(&mut self, pixel: T) {
+		self.data = vec![pixel; self.width as usize * self.height as usize];
 	}
 
-	pub fn fill_rect(&mut self, new_pixel: Color, rect: &Rect) {
+	pub fn fill_rect(&mut self, new_pixel: T, rect: &Rect) {
 		for y in 0..rect.height {
 			for x in 0..rect.width {
 				let px = x + rect.x;
 				let py = y + rect.y;
-				if let Some(pixel) = self.pixel_mut(px, py) {
+				if let Some(pixel) = self.get_mut(px, py) {
 					*pixel = new_pixel.clone();
 				}
 			}
@@ -104,7 +140,7 @@ impl Buffer {
 	pub fn resize(&mut self, w: u32, h: u32) {
 		self.width = w;
 		self.height = h;
-		self.pixels = vec![Color::transparent(); w as usize * h as usize];
+		self.data = vec![T::default(); w as usize * h as usize];
 	}
 
 	pub fn index(&self, x: i32, y: i32) -> Option<usize> {
@@ -115,23 +151,23 @@ impl Buffer {
 		Some(x as usize + y as usize * self.width as usize)
 	}
 
-	pub fn pixel(&self, x: i32, y: i32) -> Option<&Color> {
+	pub fn get(&self, x: i32, y: i32) -> Option<&T> {
 		if let Some(idx) = self.index(x, y) {
-			Some(&self.pixels[idx])
+			Some(&self.data[idx])
 		} else {
 			None
 		}
 	}
 
-	pub fn pixel_mut(&mut self, x: i32, y: i32) -> Option<&mut Color> {
+	pub fn get_mut(&mut self, x: i32, y: i32) -> Option<&mut T> {
 		if let Some(idx) = self.index(x, y) {
-			Some(&mut self.pixels[idx])
+			Some(&mut self.data[idx])
 		} else {
 			None
 		}
 	}
 
-	pub fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, pixel: Color) {
+	pub fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, pixel: T) {
 		let mut xs = x0 as f32;
 		let mut ys = y0 as f32;
 		let xe = x1 as f32;
@@ -147,7 +183,7 @@ impl Buffer {
 		let mut err = if xd >= yd { xd / 2.0 } else { -yd / 2.0 };
 
 		loop {
-			if let Some(dst) = self.pixel_mut(xs as i32, ys as i32) {
+			if let Some(dst) = self.get_mut(xs as i32, ys as i32) {
 				*dst = pixel.blend(dst);
 			}
 
@@ -167,23 +203,23 @@ impl Buffer {
 		}
 	}
 
-	pub fn draw_hline(&mut self, x0: i32, y: i32, x1: i32, color: Color) {
+	pub fn draw_hline(&mut self, x0: i32, y: i32, x1: i32, color: T) {
 		for x in x0..=x1 {
-			if let Some(pixel) = self.pixel_mut(x, y) {
+			if let Some(pixel) = self.get_mut(x, y) {
 				*pixel = color;
 			}
 		}
 	}
 
-	pub fn draw_vline(&mut self, x: i32, y0: i32, y1: i32, color: Color) {
+	pub fn draw_vline(&mut self, x: i32, y0: i32, y1: i32, color: T) {
 		for y in y0..=y1 {
-			if let Some(pixel) = self.pixel_mut(x, y) {
+			if let Some(pixel) = self.get_mut(x, y) {
 				*pixel = color;
 			}
 		}
 	}
 
-	pub fn draw_buffer(&mut self, dx: i32, dy: i32, buffer: &Buffer) {
+	pub fn draw_buffer(&mut self, dx: i32, dy: i32, buffer: &Buffer<T>) {
 		let mut width = buffer.width() as i32;
 		let mut height = buffer.height() as i32;
 		if width + dx > self.width() as i32 {
@@ -194,8 +230,8 @@ impl Buffer {
 		}
 		for y in 0..height {
 			for x in 0..width {
-				if let Some(dst_pixel) = self.pixel_mut(x + dx, y + dy) {
-					if let Some(src_pixel) = buffer.pixel(x, y) {
+				if let Some(dst_pixel) = self.get_mut(x + dx, y + dy) {
+					if let Some(src_pixel) = buffer.get(x, y) {
 						*dst_pixel = src_pixel.blend(dst_pixel);
 					}
 				}

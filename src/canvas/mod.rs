@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use crate::buffer::{Blendable, Buffer};
 use crate::camera::Camera;
 use crate::mesh::{Line, Mesh, Plane, Triangle};
 use crate::Color;
@@ -6,15 +6,15 @@ use nalgebra as na;
 use std::time::Instant;
 
 const DRAW_NORMALS: bool = false;
-const DRAW_WIRES: bool = false;
+const DRAW_WIRES: bool = true;
 
 fn map(value: f32, old_min: f32, old_max: f32, new_min: f32, new_max: f32) -> f32 {
 	((value - old_min) * (new_max - new_min)) / (old_max - old_min) + new_min
 }
 
 pub struct DrawContext<'a> {
-	pub buffer: &'a mut Buffer,
-	pub depth: &'a mut Vec<f32>,
+	pub buffer: &'a mut Buffer<Color>,
+	pub depth: &'a mut Buffer<f32>,
 	pub transform: na::Matrix4<f32>,
 }
 
@@ -29,8 +29,7 @@ impl<'a> DrawContext<'a> {
 
 	pub fn clear(&mut self) {
 		self.buffer.fill(Color::rgba(0, 0, 0, 0));
-		let (w, h) = self.buffer.size();
-		*self.depth = vec![std::f32::INFINITY; w as usize * h as usize];
+		self.depth.fill(std::f32::INFINITY);
 	}
 
 	fn world_to_view(&self, p: &na::Point3<f32>) -> na::Point3<f32> {
@@ -97,7 +96,7 @@ impl<'a> DrawContext<'a> {
 		let mut err = if xd >= yd { xd / 2.0 } else { -yd / 2.0 };
 
 		loop {
-			if let Some(dst) = self.buffer.pixel_mut(xs as i32, ys as i32) {
+			if let Some(dst) = self.buffer.get_mut(xs as i32, ys as i32) {
 				*dst = color.blend(dst);
 			}
 
@@ -165,7 +164,7 @@ impl<'a> DrawContext<'a> {
 
 			// Wireframe on top of triangle
 			if DRAW_WIRES {
-				self.wire_triangle(&tri, &Color::red());
+				self.wire_triangle(&tri, &Color::rgba(0, 0, 0, 100));
 			}
 		}
 	}
@@ -286,7 +285,7 @@ impl<'a> DrawContext<'a> {
 					let view_normal = view.transform_vector(&world_normal).normalize();
 					let _screen_normal = proj.transform_vector(&view_normal).normalize();
 
-					let color = Color::rgba(0, 100, 255, 255);
+					let color = Color::rgba((world_normal.x * 255.0) as u8, (world_normal.y * 255.0) as u8, (world_normal.z * 255.0) as u8, 255);
 					let p0 = na::Point3::from_coordinates(
 						(world_tri.points[0].coords + world_tri.points[1].coords + world_tri.points[2].coords) / 3.0,
 					);
@@ -312,17 +311,15 @@ impl<'a> DrawContext<'a> {
 		let z_step = (z1 - z0) / (x1 - x0 + 1) as f32;
 		let mut z = z0;
 		for x in x0..=x1 {
-			if let Some(idx) = self.buffer.index(x, y) {
-				if idx < self.depth.len() {
-					if self.depth[idx] < z {
-						// Pixel is behind, skip this one
-						z += z_step;
-						continue;
-					}
-					self.depth[idx] = z;
+			if let Some(d) = self.depth.get_mut(x, y) {
+				// If pixel is behind previously drawn pixel, then skip it
+				if *d < z {
+					z += z_step;
+					continue;
 				}
+				*d = z;
 			}
-			if let Some(dst) = self.buffer.pixel_mut(x, y) {
+			if let Some(dst) = self.buffer.get_mut(x, y) {
 				*dst = color.clone()
 			}
 			z += z_step;
@@ -333,32 +330,33 @@ impl<'a> DrawContext<'a> {
 pub struct Canvas {
 	last_tick_at: Instant,
 	callback: Box<dyn FnMut(&mut DrawContext, f32)>,
-	buffer: Buffer,
-	depth: Vec<f32>,
+	buffer: Buffer<Color>,
+	depth: Buffer<f32>,
 	transform_stack: Vec<na::Matrix4<f32>>,
 	transform: na::Matrix4<f32>,
 }
 
 impl Canvas {
 	pub fn new(width: u32, height: u32, callback: impl FnMut(&mut DrawContext, f32) + 'static) -> Self {
-		let buffer = Buffer::new(width, height);
-		let depth = vec![std::f32::INFINITY; width as usize * height as usize];
-
 		Self {
 			last_tick_at: Instant::now(),
 			callback: Box::new(callback),
-			depth,
-			buffer,
+			buffer: Buffer::new(width, height),
+			depth: Buffer::new_with_value(std::f32::INFINITY, width, height),
 			transform_stack: vec![],
 			transform: na::Matrix4::identity(),
 		}
+	}
+
+	pub fn as_bytes(&self) -> &[u8] {
+		self.buffer.as_bytes()
 	}
 
 	pub fn draw_pixels(&mut self, mut callback: impl FnMut(u32, u32, Color)) {
 		let (w, h) = self.buffer.size();
 		for y in 0..h {
 			for x in 0..w {
-				if let Some(pixel) = self.buffer.pixel_mut(x as i32, y as i32) {
+				if let Some(pixel) = self.buffer.get_mut(x as i32, y as i32) {
 					callback(x, y, *pixel);
 				}
 			}
@@ -376,11 +374,11 @@ impl Canvas {
 		(self.callback)(&mut context, dt.as_secs_f32());
 	}
 
-	pub fn buffer(&self) -> &Buffer {
+	pub fn buffer(&self) -> &Buffer<Color> {
 		&self.buffer
 	}
 
-	pub fn buffer_mut(&mut self) -> &mut Buffer {
+	pub fn buffer_mut(&mut self) -> &mut Buffer<Color> {
 		&mut self.buffer
 	}
 
@@ -397,12 +395,11 @@ impl Canvas {
 		}
 
 		self.buffer.resize(w, h);
-		self.depth = vec![std::f32::INFINITY; w as usize * h as usize];
+		self.depth.resize(w, h);
 	}
 
 	pub fn fill(&mut self, color: Color) {
 		self.buffer.fill(color);
-		let (w, h) = self.buffer.size();
-		self.depth = vec![std::f32::INFINITY; w as usize * h as usize];
+		self.depth.fill(std::f32::INFINITY);
 	}
 }

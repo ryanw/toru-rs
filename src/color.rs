@@ -1,5 +1,8 @@
+use crate::buffer::Blendable;
+
 pub type Ansi8BitColor = u8;
 
+#[repr(C)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Color {
 	pub r: u8,
@@ -19,6 +22,12 @@ impl Color {
 
 	pub fn transparent() -> Self {
 		Self { r: 0, g: 0, b: 0, a: 0 }
+	}
+
+	pub fn as_slice(&self) -> &[u8; 4] {
+		unsafe {
+			std::mem::transmute(self)
+		}
 	}
 
 	pub fn black() -> Self {
@@ -99,8 +108,10 @@ impl Color {
 			self.a as f32 / 255.0,
 		)
 	}
+}
 
-	pub fn blend(&self, bg: &Color) -> Color {
+impl Blendable for Color {
+	fn blend(&self, bg: &Color) -> Color {
 		let (fg_r, fg_g, fg_b, fg_a) = self.as_floats();
 		let (bg_r, bg_g, bg_b, bg_a) = bg.as_floats();
 
