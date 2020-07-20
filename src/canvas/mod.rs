@@ -61,8 +61,8 @@ impl<'a> DrawContext<'a> {
 			Plane::new(na::Point3::new(0.0, 1.0, 0.0), na::Vector3::new(0.0, -1.0, 0.0)),
 		];
 
-		let mut triangles = Vec::with_capacity(32);
-		let mut next_triangles = Vec::with_capacity(32);
+		let mut triangles = Vec::with_capacity(8);
+		let mut next_triangles = Vec::with_capacity(8);
 		triangles.push(tri.clone());
 		for plane in &planes {
 			for tri in triangles.drain(..) {

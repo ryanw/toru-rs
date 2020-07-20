@@ -86,7 +86,7 @@ impl Triangle {
 		}
 
 		// Should never happen
-		panic!("Your triangle is weird");
+		unreachable!("Your triangle is weird");
 	}
 }
 
