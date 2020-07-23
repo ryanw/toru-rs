@@ -16,9 +16,18 @@ pub struct DrawContext<'a> {
 	pub buffer: &'a mut Buffer<Color>,
 	pub depth: &'a mut Buffer<f32>,
 	pub transform: na::Matrix4<f32>,
+	transform_stack: Vec<na::Matrix4<f32>>,
 }
 
 impl<'a> DrawContext<'a> {
+	pub fn new(buffer: &'a mut Buffer<Color>, depth: &'a mut Buffer<f32>) -> Self {
+		Self {
+			buffer,
+			depth,
+			transform: na::Matrix4::identity(),
+			transform_stack: vec![],
+		}
+	}
 	pub fn width(&self) -> u32 {
 		self.buffer.width()
 	}
@@ -26,6 +35,14 @@ impl<'a> DrawContext<'a> {
 	pub fn height(&self) -> u32 {
 		self.buffer.height()
 	}
+
+	pub fn with_transform<F: Fn(&mut Self)>(&mut self, transform: na::Matrix4<f32>, func: F) {
+		self.transform_stack.push(self.transform);
+		self.transform = self.transform * transform;
+		func(self);
+		self.transform = self.transform_stack.pop().unwrap();
+	}
+
 
 	pub fn clear(&mut self) {
 		self.buffer.fill(Color::rgba(0, 0, 0, 0));
@@ -232,14 +249,19 @@ impl<'a> DrawContext<'a> {
 		);
 	}
 
-	pub fn draw_mesh(&mut self, mesh: &dyn Mesh, camera: &Camera) {
+	pub fn draw_mesh<'b>(&mut self, mesh: &dyn Mesh, camera: &Camera) {
+		self.draw_triangles(&mut mesh.triangles(), camera)
+	}
+
+
+	pub fn draw_triangles<'b, I: Iterator<Item=Triangle>>(&mut self, triangles: &mut I, camera: &Camera) {
 		let light_dir = na::Vector3::new(0.8, 0.3, 0.8).normalize();
 		let model = self.transform;
 		let view = camera.view();
 		let proj = camera.projection();
 		// FIXME this is backwards
 		let near_plane = Plane::new(na::Point3::new(0.0, 0.0, -0.1), na::Vector3::new(0.0, 0.0, -1.0));
-		for tri in mesh.triangles() {
+		for tri in triangles {
 			// Triangle in world space
 			let world_tri = Triangle::new(
 				model.transform_point(&tri.points[0]),
@@ -265,6 +287,7 @@ impl<'a> DrawContext<'a> {
 			color.r = (color.r as f32 * dot) as u8;
 			color.g = (color.g as f32 * dot) as u8;
 			color.b = (color.b as f32 * dot) as u8;
+			color.a = 255;
 
 			let view_tri = Triangle::new(
 				view.transform_point(&world_tri.points[0]),
@@ -329,7 +352,7 @@ impl<'a> DrawContext<'a> {
 }
 
 pub struct Canvas {
-	last_tick_at: Instant,
+	last_tick_at: f64,
 	callback: Box<dyn FnMut(&mut DrawContext, f32)>,
 	buffer: Buffer<Color>,
 	depth: Buffer<f32>,
@@ -340,7 +363,7 @@ pub struct Canvas {
 impl Canvas {
 	pub fn new(width: u32, height: u32, callback: impl FnMut(&mut DrawContext, f32) + 'static) -> Self {
 		Self {
-			last_tick_at: Instant::now(),
+			last_tick_at: 0.0,
 			callback: Box::new(callback),
 			buffer: Buffer::new(width, height),
 			depth: Buffer::new_with_value(std::f32::INFINITY, width, height),
@@ -364,15 +387,12 @@ impl Canvas {
 		}
 	}
 
-	pub fn tick(&mut self) {
-		let dt = self.last_tick_at.elapsed();
-		self.last_tick_at = Instant::now();
-		let mut context = DrawContext {
-			buffer: &mut self.buffer,
-			depth: &mut self.depth,
-			transform: self.transform,
-		};
-		(self.callback)(&mut context, dt.as_secs_f32());
+	pub fn tick(&mut self, now: f64) {
+		let dt = (now - self.last_tick_at) / 1000.0;
+		self.last_tick_at = now;
+		let mut context = DrawContext::new(&mut self.buffer, &mut self.depth);
+		context.transform = self.transform;
+		(self.callback)(&mut context, dt as f32);
 	}
 
 	pub fn buffer(&self) -> &Buffer<Color> {

@@ -10,6 +10,14 @@ pub struct Cube {
 }
 
 impl Mesh for Cube {
+	fn transform(&self) -> Option<&na::Matrix4<f32>> {
+		Some(&self.transform)
+	}
+
+	fn transform_mut(&mut self) -> Option<&mut na::Matrix4<f32>> {
+		Some(&mut self.transform)
+	}
+
 	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
 		Box::new(CubeIterator::new(self))
 	}
@@ -22,10 +30,6 @@ impl Cube {
 			color,
 			transform: na::Matrix4::identity(),
 		}
-	}
-
-	pub fn transform(&self) -> &na::Matrix4<f32> {
-		&self.transform
 	}
 
 	pub fn transform_mut(&mut self) -> &mut na::Matrix4<f32> {

@@ -7,6 +7,7 @@ pub struct Triangle {
 	pub normal: na::Vector3<f32>,
 	pub color: Option<Color>,
 }
+unsafe impl Send for Triangle {}
 
 impl Triangle {
 	pub fn new(p0: na::Point3<f32>, p1: na::Point3<f32>, p2: na::Point3<f32>) -> Self {

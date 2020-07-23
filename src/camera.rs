@@ -1,5 +1,7 @@
 use nalgebra as na;
 
+const FOV: f32 = 4.0;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
 	pub width: f32,
@@ -7,6 +9,7 @@ pub struct Camera {
 	pub projection: na::Perspective3<f32>,
 	pub position: na::Point3<f32>,
 	pub rotation: na::Vector3<f32>,
+	pub scaling: na::Vector3<f32>,
 }
 
 impl Default for Camera {
@@ -14,9 +17,10 @@ impl Default for Camera {
 		Self {
 			width: Default::default(),
 			height: Default::default(),
-			projection: na::Perspective3::new(1.0, 3.14 / 4.0, 0.1, 1000.0),
+			projection: na::Perspective3::new(1.0, 3.14 / FOV, 0.1, 1000.0),
 			position: na::Point3::new(0.0, 0.0, -3.0),
 			rotation: na::Vector3::new(0.0, 0.0, 0.0),
+			scaling: na::Vector3::new(1.0, 1.0, 1.0),
 		}
 	}
 }
@@ -26,7 +30,7 @@ impl Camera {
 		Self {
 			width,
 			height,
-			projection: na::Perspective3::new(width / height, 3.14 / 2.0, 0.1, 1000.0),
+			projection: na::Perspective3::new(width / height, 3.14 / FOV, 0.1, 1000.0),
 			..Default::default()
 		}
 	}
@@ -41,6 +45,7 @@ impl Camera {
 
 	pub fn view(&self) -> na::Matrix4<f32> {
 		let mut mat4 = na::Matrix4::new_translation(&self.position.coords);
+		mat4 *= self.scaling();
 		mat4 *= self.rotation();
 		mat4 *= na::Rotation3::face_towards(&na::Vector3::new(0.0, 0.0, -1.0), &na::Vector3::new(0.0, -1.0, 0.0))
 			.to_homogeneous();
@@ -57,6 +62,10 @@ impl Camera {
 			* na::Matrix4::new_rotation(na::Vector3::new(self.rotation.x, 0.0, 0.0))
 	}
 
+	pub fn scaling(&self) -> na::Matrix4<f32> {
+		na::Matrix4::new_nonuniform_scaling(&self.scaling)
+	}
+
 	pub fn view_projection(&self) -> na::Matrix4<f32> {
 		self.projection() * self.view()
 	}
@@ -64,7 +73,8 @@ impl Camera {
 	pub fn resize(&mut self, width: f32, height: f32) {
 		self.width = width;
 		self.height = height;
-		self.projection = na::Perspective3::new(width / height, 3.14 / 2.0, 0.1, 1000.0);
+		let aspect = (3.14 * self.scaling.x) / (FOV * self.scaling.y);
+		self.projection = na::Perspective3::new(width / height, aspect, 0.1, 1000.0);
 	}
 
 	pub fn size(&self) -> (f32, f32) {

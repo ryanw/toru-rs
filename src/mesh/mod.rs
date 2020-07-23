@@ -53,6 +53,13 @@ mod objfile {
 }
 
 pub trait Mesh {
+	fn transform(&self) -> Option<&na::Matrix4<f32>> {
+		None
+	}
+
+	fn transform_mut(&mut self) -> Option<&mut na::Matrix4<f32>> {
+		None
+	}
 	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a>;
 	fn len(&self) -> usize {
 		0
@@ -64,6 +71,7 @@ pub trait Mesh {
 
 #[derive(Default, Clone)]
 pub struct StaticMesh {
+	pub transform: na::Matrix4<f32>,
 	pub vertices: Vec<na::Point3<f32>>,
 	pub normals: Vec<na::Vector3<f32>>,
 	pub triangles: Vec<(usize, usize, usize)>,
@@ -72,11 +80,14 @@ pub struct StaticMesh {
 
 impl StaticMesh {
 	pub fn new() -> Self {
-		Default::default()
+		Self {
+			transform: na::Matrix4::identity(),
+			..Default::default()
+		}
 	}
 
 	pub fn sphere(radius: f32, resolution: u8, color: Color) -> Self {
-		let mut mesh = StaticMesh::default();
+		let mut mesh = StaticMesh::new();
 		let t = ((1.0 + 5.0f32.sqrt()) / 2.0);
 
 		mesh.vertices
@@ -203,6 +214,14 @@ impl StaticMesh {
 }
 
 impl Mesh for StaticMesh {
+	fn transform(&self) -> Option<&na::Matrix4<f32>> {
+		Some(&self.transform)
+	}
+
+	fn transform_mut(&mut self) -> Option<&mut na::Matrix4<f32>> {
+		Some(&mut self.transform)
+	}
+
 	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
 		Box::new(StaticMeshIterator::new(self))
 	}
