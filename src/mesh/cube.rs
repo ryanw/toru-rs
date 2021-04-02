@@ -1,26 +1,29 @@
 use super::{Mesh, Triangle};
-use crate::buffer::Blendable;
-use crate::color::Color;
+use crate::{Blendable, Color, Material};
 use nalgebra as na;
 
 #[derive(Clone)]
 pub struct Cube<P: Blendable = Color> {
 	transform: na::Matrix4<f32>,
 	size: f32,
-	color: P,
+	material: Material<P>,
 }
 
 impl<P: Blendable> Mesh<P> for Cube<P> {
-	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle<P>> + 'a> {
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
 		Box::new(CubeIterator::new(self))
+	}
+
+	fn material(&self) -> Option<&Material<P>> {
+		Some(&self.material)
 	}
 }
 
 impl<P: Blendable> Cube<P> {
-	pub fn new(size: f32, color: P) -> Self {
+	pub fn new(size: f32, material: Material<P>) -> Self {
 		Self {
 			size,
-			color,
+			material,
 			transform: na::Matrix4::identity(),
 		}
 	}
@@ -51,7 +54,7 @@ impl<'a, P: Blendable> CubeIterator<'a, P> {
 }
 
 impl<'a, P: Blendable> Iterator for CubeIterator<'a, P> {
-	type Item = Triangle<P>;
+	type Item = Triangle;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.current > 11 {
@@ -67,71 +70,129 @@ impl<'a, P: Blendable> Iterator for CubeIterator<'a, P> {
 				na::Point3::new(-s, -s, -s * p),
 				na::Point3::new(s, -s, -s * p),
 				na::Point3::new(-s, s, -s * p),
+			)
+			.uv(
+				na::Point2::new(0.0, 0.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(0.0, 1.0),
 			),
 			1 => Triangle::new(
 				na::Point3::new(-s, s, -s * p),
 				na::Point3::new(s, -s, -s * p),
 				na::Point3::new(s, s, -s * p),
+			)
+			.uv(
+				na::Point2::new(0.0, 1.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(1.0, 1.0),
 			),
 			// Far
 			2 => Triangle::new(
 				na::Point3::new(s, -s, s * p),
 				na::Point3::new(-s, -s, s * p),
 				na::Point3::new(s, s, s * p),
+			)
+			.uv(
+				na::Point2::new(0.0, 0.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(0.0, 1.0),
 			),
 			3 => Triangle::new(
 				na::Point3::new(s, s, s * p),
 				na::Point3::new(-s, -s, s * p),
 				na::Point3::new(-s, s, s * p),
+			)
+			.uv(
+				na::Point2::new(0.0, 1.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(1.0, 1.0),
 			),
 			// Left
 			4 => Triangle::new(
 				na::Point3::new(-s * p, -s, s),
 				na::Point3::new(-s * p, -s, -s),
 				na::Point3::new(-s * p, s, s),
+			)
+			.uv(
+				na::Point2::new(0.0, 0.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(0.0, 1.0),
 			),
 			5 => Triangle::new(
 				na::Point3::new(-s * p, s, s),
 				na::Point3::new(-s * p, -s, -s),
 				na::Point3::new(-s * p, s, -s),
+			)
+			.uv(
+				na::Point2::new(0.0, 1.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(1.0, 1.0),
 			),
 			// Right
 			6 => Triangle::new(
 				na::Point3::new(s * p, -s, -s),
 				na::Point3::new(s * p, -s, s),
 				na::Point3::new(s * p, s, -s),
+			)
+			.uv(
+				na::Point2::new(0.0, 0.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(0.0, 1.0),
 			),
 			7 => Triangle::new(
 				na::Point3::new(s * p, s, -s),
 				na::Point3::new(s * p, -s, s),
 				na::Point3::new(s * p, s, s),
+			)
+			.uv(
+				na::Point2::new(0.0, 1.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(1.0, 1.0),
 			),
 			// Top
 			8 => Triangle::new(
 				na::Point3::new(-s, s * p, -s),
 				na::Point3::new(s, s * p, -s),
 				na::Point3::new(-s, s * p, s),
+			)
+			.uv(
+				na::Point2::new(0.0, 0.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(0.0, 1.0),
 			),
 			9 => Triangle::new(
 				na::Point3::new(-s, s * p, s),
 				na::Point3::new(s, s * p, -s),
 				na::Point3::new(s, s * p, s),
+			)
+			.uv(
+				na::Point2::new(0.0, 1.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(1.0, 1.0),
 			),
 			// Bottom
 			10 => Triangle::new(
 				na::Point3::new(-s, -s * p, s),
 				na::Point3::new(s, -s * p, s),
 				na::Point3::new(-s, -s * p, -s),
+			)
+			.uv(
+				na::Point2::new(0.0, 0.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(0.0, 1.0),
 			),
 			11 => Triangle::new(
 				na::Point3::new(-s, -s * p, -s),
 				na::Point3::new(s, -s * p, s),
 				na::Point3::new(s, -s * p, -s),
+			)
+			.uv(
+				na::Point2::new(0.0, 1.0),
+				na::Point2::new(1.0, 0.0),
+				na::Point2::new(1.0, 1.0),
 			),
 			_ => return None,
 		};
-
-		tri.color = Some(self.cube.color);
 
 		self.current += 1;
 		Some(tri)

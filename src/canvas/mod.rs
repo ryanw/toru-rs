@@ -1,7 +1,6 @@
-use crate::buffer::{Blendable, Buffer};
 use crate::camera::Camera;
 use crate::mesh::{Line, Mesh, Plane, Triangle};
-use crate::Color;
+use crate::{Blendable, Buffer, Color, Material, Texture};
 use nalgebra as na;
 use std::time::Instant;
 
@@ -49,7 +48,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		p
 	}
 
-	fn clip_triangle_to_edges(&self, tri: &Triangle<P>) -> Vec<Triangle<P>> {
+	fn clip_triangle_to_edges(&self, tri: &Triangle) -> Vec<Triangle> {
 		let planes = [
 			// Left
 			Plane::new(na::Point3::new(-1.0, 0.0, 0.0), na::Vector3::new(1.0, 0.0, 0.0)),
@@ -123,7 +122,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		self.draw_line3(&Line::new(p0, p1), color);
 	}
 
-	pub fn wire_triangle(&mut self, tri: &Triangle<P>, color: &P) {
+	pub fn wire_triangle(&mut self, tri: &Triangle, color: &P) {
 		let p0 = &tri.points[0];
 		let p1 = &tri.points[1];
 		let p2 = &tri.points[2];
@@ -133,7 +132,73 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		self.wire_line(&Line::new(p2.clone(), p0.clone()), color);
 	}
 
-	pub fn fill_triangle(&mut self, tri: &Triangle<P>, color: &P) {
+	pub fn texture_triangle(&mut self, tri: &Triangle, material: &Material<P>, brightness: f32) {
+		match material {
+			Material::Color(color) => {
+				self.fill_triangle(tri, color);
+			}
+			_ => {
+				for tri in self.clip_triangle_to_edges(tri) {
+					let p0 = (self.view_to_screen(&tri.points[0]), tri.uvs[0]);
+					let p1 = (self.view_to_screen(&tri.points[1]), tri.uvs[1]);
+					let p2 = (self.view_to_screen(&tri.points[2]), tri.uvs[2]);
+
+					// Split triangle into 2 axis aligned triangles
+
+					// Sort by Y axis
+					let mut points = [p0, p1, p2];
+					points.sort_by(|l, r| l.0.y.partial_cmp(&r.0.y).unwrap());
+
+					// If we already have an aligned edge, we only need 1 triangle
+					if points[0].0.y == points[1].0.y {
+						self.texture_flat_top_triangle(
+							&Triangle::new(points[0].0, points[1].0, points[2].0).uv(
+								points[0].1,
+								points[1].1,
+								points[2].1,
+							),
+							material,
+							brightness,
+						);
+					} else if points[1].0.y == points[2].0.y {
+						self.texture_flat_bottom_triangle(
+							&Triangle::new(points[0].0, points[1].0, points[2].0).uv(
+								points[0].1,
+								points[1].1,
+								points[2].1,
+							),
+							material,
+							brightness,
+						);
+					} else {
+						// No flat edge, so we need to split
+						let dy = (points[1].0.y - points[0].0.y) / (points[2].0.y - points[0].0.y);
+						let mid = na::Point3::new(
+							points[0].0.x + dy * (points[2].0.x - points[0].0.x),
+							points[1].0.y,
+							points[0].0.z + dy * (points[2].0.z - points[0].0.z),
+						);
+						let mid_uv = na::Point2::new(
+							points[0].1.x + dy * (points[2].1.x - points[0].1.x),
+							points[0].1.y + dy * (points[2].1.y - points[0].1.y),
+						);
+						self.texture_flat_top_triangle(
+							&Triangle::new(points[1].0, mid, points[2].0).uv(points[1].1, mid_uv, points[2].1),
+							material,
+							brightness,
+						);
+						self.texture_flat_bottom_triangle(
+							&Triangle::new(points[0].0, mid, points[1].0).uv(points[0].1, mid_uv, points[1].1),
+							material,
+							brightness,
+						);
+					}
+				}
+			}
+		}
+	}
+
+	pub fn fill_triangle(&mut self, tri: &Triangle, color: &P) {
 		for tri in self.clip_triangle_to_edges(tri) {
 			let p0 = self.view_to_screen(&tri.points[0]);
 			let p1 = self.view_to_screen(&tri.points[1]);
@@ -165,6 +230,200 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 			// Wireframe on top of triangle
 			if DRAW_WIRES {
 				//self.wire_triangle(&tri, &Color::rgba(0, 0, 0, 100));
+			}
+		}
+	}
+
+	fn texture_flat_bottom_triangle(&mut self, tri: &Triangle, material: &Material<P>, brightness: f32) {
+		match material {
+			Material::Color(color) => {
+				self.fill_flat_bottom_triangle(tri, color);
+			}
+			Material::Texture(texture) => {
+				let [p0, p1, p2] = tri.points;
+				let [t0, t1, t2] = tri.uvs;
+
+				let dx0 = p1.x - p0.x;
+				let dy0 = p1.y - p0.y;
+				let du0 = t1.x - t0.x;
+				let dv0 = t1.y - t0.y;
+
+				let dx1 = p2.x - p0.x;
+				let dy1 = p2.y - p0.y;
+				let du1 = t2.x - t0.x;
+				let dv1 = t2.y - t0.y;
+
+				let slope0 = dx0 / dy0.abs();
+				let slope1 = dx1 / dy1.abs();
+
+				let slopeu0 = du0 / dy0.abs();
+				let slopev0 = dv0 / dy0.abs();
+
+				let slopeu1 = du1 / dy1.abs();
+				let slopev1 = dv1 / dy1.abs();
+
+				let zslope0 = (p1.z - p0.z) / dy0;
+				let zslope1 = (p2.z - p0.z) / dy0;
+
+				let mut x0 = p0.x;
+				let mut x1 = p0.x;
+				let mut z0 = p0.z;
+				let mut z1 = p0.z;
+
+				let mut u0 = t0.x;
+				let mut v0 = t0.y;
+				let mut u1 = t0.x;
+				let mut v1 = t0.y;
+
+				let mut y = p0.y as i32;
+				while y <= p1.y as i32 {
+					if x0 != x1 {
+						let (u0, u1) = if x0 < x1 { (u0, u1) } else { (u1, u0) };
+						let (v0, v1) = if x0 < x1 { (v0, v1) } else { (v1, v0) };
+						let (x0, x1, z0, z1) = if x0 < x1 { (x0, x1, z0, z1) } else { (x1, x0, z1, z0) };
+
+						let mut u = u0;
+						let mut v = v0;
+						let mut t_step = 1.0 / (x1 - x0);
+						let mut t = 0.0;
+
+						let z_step = (z1 - z0) / (x1 - x0 + 1.0);
+						let mut z = z0;
+						for x in (x0 as i32)..=(x1 as i32) {
+							if let Some(d) = self.depth.get_mut(x, y) {
+								// If pixel is behind previously drawn pixel, then skip it
+								if *d < z {
+									z += z_step;
+									t += t_step;
+									continue;
+								}
+								*d = z;
+							}
+							if let Some(dst) = self.buffer.get_mut(x, y) {
+								u = (1.0 - t) * u0 + t * u1;
+								v = (1.0 - t) * v0 + t * v1;
+
+								if let Some(color) = texture.get_normalized_pixel(u, v) {
+									let mut color = color.clone();
+									color.set_brightness(brightness);
+									*dst = color
+								} else {
+									log::warn!("Failed to find pixel {}x{}", u, v);
+								}
+							}
+							t += t_step;
+							z += z_step;
+						}
+					}
+
+					y += 1;
+					x0 += slope0;
+					x1 += slope1;
+					u0 += slopeu0;
+					v0 += slopev0;
+					u1 += slopeu1;
+					v1 += slopev1;
+					z0 += zslope0;
+					z1 += zslope1;
+				}
+			}
+		}
+	}
+
+	fn texture_flat_top_triangle(&mut self, tri: &Triangle, material: &Material<P>, brightness: f32) {
+		match material {
+			Material::Color(color) => {
+				self.fill_flat_top_triangle(tri, color);
+			}
+			Material::Texture(texture) => {
+				let [p0, p1, p2] = tri.points;
+				let [t0, t1, t2] = tri.uvs;
+
+				let dx0 = p2.x - p0.x;
+				let dy0 = p2.y - p0.y;
+				let du0 = t2.x - t0.x;
+				let dv0 = t2.y - t0.y;
+
+				let dx1 = p2.x - p1.x;
+				let dy1 = p2.y - p1.y;
+				let du1 = t2.x - t1.x;
+				let dv1 = t2.y - t1.y;
+
+				let slope0 = dx0 / dy0.abs();
+				let slope1 = dx1 / dy1.abs();
+
+				let slopeu0 = du0 / dy0.abs();
+				let slopev0 = dv0 / dy0.abs();
+
+				let slopeu1 = du1 / dy1.abs();
+				let slopev1 = dv1 / dy1.abs();
+
+				let zslope0 = (p2.z - p0.z) / dy0;
+				let zslope1 = (p2.z - p1.z) / dy0;
+
+				let mut x0 = p2.x;
+				let mut x1 = p2.x;
+				let mut z0 = p2.z;
+				let mut z1 = p2.z;
+
+				let mut u0 = t2.x;
+				let mut v0 = t2.y;
+				let mut u1 = t2.x;
+				let mut v1 = t2.y;
+
+				let mut y = p2.y as i32;
+				while y > p0.y as i32 {
+					if x0 != x1 {
+						let (u0, u1) = if x0 < x1 { (u0, u1) } else { (u1, u0) };
+						let (v0, v1) = if x0 < x1 { (v0, v1) } else { (v1, v0) };
+						let (x0, x1, z0, z1) = if x0 < x1 { (x0, x1, z0, z1) } else { (x1, x0, z1, z0) };
+
+						let mut u = u0;
+						let mut v = v0;
+						let mut t_step = 1.0 / (x1 - x0);
+						let mut t = 0.0;
+						u = (1.0 - t) * u0 + t * u1;
+						v = (1.0 - t) * v0 + t * v1;
+
+						let z_step = (z1 - z0) / (x1 - x0 + 1.0);
+						let mut z = z0;
+						for x in (x0 as i32)..=(x1 as i32) {
+							if let Some(d) = self.depth.get_mut(x, y) {
+								// If pixel is behind previously drawn pixel, then skip it
+								if *d < z {
+									z += z_step;
+									t += t_step;
+									continue;
+								}
+								*d = z;
+							}
+							if let Some(dst) = self.buffer.get_mut(x, y) {
+								u = (1.0 - t) * u0 + t * u1;
+								v = (1.0 - t) * v0 + t * v1;
+
+								if let Some(color) = texture.get_normalized_pixel(u, v) {
+									let mut color = color.clone();
+									color.set_brightness(brightness);
+									*dst = color
+								} else {
+									log::warn!("Failed to find pixel {}x{}", u, v);
+								}
+							}
+							t += t_step;
+							z += z_step;
+						}
+					}
+
+					y -= 1;
+					x0 -= slope0;
+					x1 -= slope1;
+					u0 -= slopeu0;
+					v0 -= slopev0;
+					u1 -= slopeu1;
+					v1 -= slopev1;
+					z0 -= zslope0;
+					z1 -= zslope1;
+				}
 			}
 		}
 	}
@@ -233,6 +492,12 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 	}
 
 	pub fn draw_mesh(&mut self, mesh: &dyn Mesh<P>, camera: &Camera) {
+		if mesh.material().is_none() {
+			log::warn!("Mesh has no material");
+			return;
+		}
+
+		let material = mesh.material().unwrap();
 		let light_dir = na::Vector3::new(0.8, 0.3, 0.8).normalize();
 		let model = self.transform;
 		let view = camera.view();
@@ -241,7 +506,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		let near_plane = Plane::new(na::Point3::new(0.0, 0.0, -0.1), na::Vector3::new(0.0, 0.0, -1.0));
 		for tri in mesh.triangles() {
 			// Triangle in world space
-			let world_tri: Triangle<P> = Triangle::new(
+			let world_tri: Triangle = Triangle::new(
 				model.transform_point(&tri.points[0]),
 				model.transform_point(&tri.points[1]),
 				model.transform_point(&tri.points[2]),
@@ -254,34 +519,27 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 			}
 
 			// Lighting
-			let mut dot = world_normal.dot(&light_dir);
-			if dot < 0.1 {
-				dot = 0.1;
+			let mut brightness = world_normal.dot(&light_dir);
+			if brightness < 0.1 {
+				brightness = 0.1;
 			}
 
-			let mut color: P = tri.color.unwrap_or(P::default());
-
-			// FIXME Adjust color lighting
-			color.set_brightness(dot);
-			/*
-			color.r = (color.r as f32 * dot) as u8;
-			color.g = (color.g as f32 * dot) as u8;
-			color.b = (color.b as f32 * dot) as u8;
-			*/
-
-			let view_tri: Triangle<P> = Triangle::new(
+			let view_tri: Triangle = Triangle::new(
 				view.transform_point(&world_tri.points[0]),
 				view.transform_point(&world_tri.points[1]),
 				view.transform_point(&world_tri.points[2]),
 			);
 			// Clip triangles that stick into the camera
 			for clip_tri in view_tri.clip_to_plane(&near_plane) {
-				let screen_tri: Triangle<P> = Triangle::new(
+				let screen_tri: Triangle = Triangle::new(
 					proj.transform_point(&clip_tri.points[0]),
 					proj.transform_point(&clip_tri.points[1]),
 					proj.transform_point(&clip_tri.points[2]),
-				);
-				self.fill_triangle(&screen_tri, &color);
+				)
+				// FIXME clip UVs
+				.uv(tri.uvs[0].clone(), tri.uvs[1].clone(), tri.uvs[2].clone());
+
+				self.texture_triangle(&screen_tri, &material, brightness);
 
 				// FIXME - swap Color for P
 				/*

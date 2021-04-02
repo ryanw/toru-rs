@@ -14,14 +14,14 @@ pub struct Terrain {
 
 #[cfg(not(feature = "mutunga"))]
 impl<P: Blendable + 'static> Mesh<P> for Terrain {
-	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle<P>> + 'a> {
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
 		Box::new(TerrainIterator::new(self))
 	}
 }
 
 #[cfg(feature = "mutunga")]
 impl Mesh<mutunga::Color> for Terrain {
-	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle<mutunga::Color>> + 'a> {
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
 		Box::new(TerrainIterator::new(self))
 	}
 }
@@ -82,7 +82,7 @@ impl<'a, P: Blendable> TerrainIterator<'a, P> {
 
 #[cfg(not(feature = "mutunga"))]
 impl<'a, P: Blendable> Iterator for TerrainIterator<'a, P> {
-	type Item = Triangle<P>;
+	type Item = Triangle;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.current >= self.len() {
@@ -126,7 +126,7 @@ impl<'a, P: Blendable> Iterator for TerrainIterator<'a, P> {
 
 #[cfg(feature = "mutunga")]
 impl<'a> Iterator for TerrainIterator<'a, mutunga::Color> {
-	type Item = Triangle<mutunga::Color>;
+	type Item = Triangle;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.current >= self.len() {
@@ -158,8 +158,6 @@ impl<'a> Iterator for TerrainIterator<'a, mutunga::Color> {
 			-10..=-1 => mutunga::Color::rgb(0, 0, 255),
 			_ => mutunga::Color::rgb(0, 0, 50),
 		};
-
-		tri.color = Some(color);
 
 		self.current += 1;
 		Some(tri)

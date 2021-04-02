@@ -8,8 +8,7 @@ pub use cube::*;
 mod terrain;
 pub use terrain::*;
 mod material;
-use crate::buffer::Blendable;
-use crate::color::Color;
+use crate::{Blendable, Color, Material, Texture};
 pub use material::*;
 
 mod objfile {
@@ -54,11 +53,17 @@ mod objfile {
 }
 
 pub trait Mesh<P: Blendable = Color> {
-	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle<P>> + 'a>;
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a>;
+
 	fn len(&self) -> usize {
 		0
 	}
+
 	fn color(&self) -> Option<P> {
+		None
+	}
+
+	fn material(&self) -> Option<&Material<P>> {
 		None
 	}
 }
@@ -195,7 +200,7 @@ impl<P: Blendable> StaticMesh<P> {
 }
 
 impl<P: Blendable> Mesh<P> for StaticMesh<P> {
-	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle<P>> + 'a> {
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
 		Box::new(StaticMeshIterator::new(self))
 	}
 
@@ -222,7 +227,7 @@ impl<'a, P: Blendable> ExactSizeIterator for StaticMeshIterator<'a, P> {
 }
 
 impl<'a, P: Blendable> Iterator for StaticMeshIterator<'a, P> {
-	type Item = Triangle<P>;
+	type Item = Triangle;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.current >= self.len() {
@@ -238,13 +243,7 @@ impl<'a, P: Blendable> Iterator for StaticMeshIterator<'a, P> {
 		let d = ((tri.points[0].coords + tri.points[1].coords + tri.points[2].coords) / 3.0)
 			.norm()
 			.abs() - 9.0;
-		let color = if self.current < self.mesh.colors.len() {
-			self.mesh.colors[self.current]
-		} else {
-			P::default()
-		};
 
-		tri.color = Some(color);
 		self.current += 1;
 		Some(tri)
 	}
