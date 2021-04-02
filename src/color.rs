@@ -25,9 +25,7 @@ impl Color {
 	}
 
 	pub fn as_slice(&self) -> &[u8; 4] {
-		unsafe {
-			std::mem::transmute(self)
-		}
+		unsafe { std::mem::transmute(self) }
 	}
 
 	pub fn black() -> Self {
@@ -125,5 +123,18 @@ impl Blendable for Color {
 			(b * 255.0) as u8,
 			(a * 255.0) as u8,
 		)
+	}
+
+	fn set_brightness(&mut self, brightness: f32) {
+		self.r = (self.r as f32 * brightness) as u8;
+		self.g = (self.g as f32 * brightness) as u8;
+		self.b = (self.b as f32 * brightness) as u8;
+	}
+}
+
+#[cfg(feature = "mutunga")]
+impl From<mutunga::Color> for Color {
+	fn from(other: mutunga::Color) -> Color {
+		Color::rgba(other.r, other.g, other.b, other.a)
 	}
 }

@@ -1,16 +1,16 @@
-use mutunga::{Cell, Color as TermColor, Event, MouseButton, TerminalCanvas};
+use mutunga::{Cell, Color, Event, MouseButton, TerminalCanvas};
 use nalgebra as na;
 use std::f32::consts::PI;
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
-use toru::{Camera, Canvas, Color, DrawContext, Mesh, StaticMesh};
+use toru::{Camera, Canvas, DrawContext, Mesh, StaticMesh};
 
 struct MouseScene {
 	mouse_down: bool,
 	mouse_origin: (i32, i32),
 	velocity: (f32, f32),
 	camera: Camera,
-	mesh: Box<dyn Mesh>,
+	mesh: Box<dyn Mesh<Color>>,
 	transform: na::Matrix4<f32>,
 }
 
@@ -30,7 +30,7 @@ impl MouseScene {
 		}
 	}
 
-	pub fn render(&self, ctx: &mut DrawContext) {
+	pub fn render(&self, ctx: &mut DrawContext<Color>) {
 		ctx.clear();
 		ctx.transform = self.transform;
 		ctx.draw_mesh(self.mesh.as_ref(), &self.camera);
@@ -46,13 +46,22 @@ fn main() {
 	let transform = na::Matrix4::from_euler_angles(PI, 0.0, 0.0) * na::Matrix4::new_scaling(1.5);
 
 	// Create a scene with just a single mesh.
+	let mut mesh = StaticMesh::load_obj("examples/assets/suzanne.obj").expect("Unable to open mesh file");
+	for t in &mut mesh.triangles {
+		let p = mesh.vertices[t.0];
+		let color = match (p.coords.norm() * 10.0) as i32 {
+			-100..=100 => Color::green(),
+			_ => Color::blue(),
+		};
+		mesh.colors.push(color);
+	}
 	let mut scene = Arc::new(Mutex::new(MouseScene {
 		mouse_down: false,
 		mouse_origin: (0, 0),
 		velocity: (0.0, 0.0),
 		transform,
 		camera: Camera::new(width as _, height as _),
-		mesh: Box::new(StaticMesh::load_obj("examples/assets/suzanne.obj").expect("Unable to open mesh file")),
+		mesh: Box::new(mesh),
 	}));
 
 	// Init the 3D canvas
@@ -115,8 +124,8 @@ fn main() {
 				x as i32,
 				y as i32,
 				Cell {
-					fg: TermColor::transparent(),
-					bg: TermColor::rgba(color.r, color.g, color.b, color.a),
+					fg: Color::transparent(),
+					bg: Color::rgba(color.r, color.g, color.b, color.a),
 					symbol: ' ',
 				},
 			);

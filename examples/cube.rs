@@ -1,12 +1,12 @@
-use mutunga::{Cell, Color as TermColor, Event, TerminalCanvas};
+use mutunga::{Cell, Color, Event, TerminalCanvas};
 use nalgebra as na;
 use std::f32::consts::PI;
 use std::{thread, time};
-use toru::{Camera, Canvas, Color, Cube, DrawContext};
+use toru::{Camera, Canvas, Cube, DrawContext};
 
 struct CubeScene {
 	camera: Camera,
-	cube: Cube,
+	cube: Cube<Color>,
 }
 
 impl CubeScene {
@@ -15,7 +15,7 @@ impl CubeScene {
 		*self.cube.transform_mut() *= rot;
 	}
 
-	pub fn render(&self, ctx: &mut DrawContext) {
+	pub fn render(&self, ctx: &mut DrawContext<Color>) {
 		ctx.clear();
 		ctx.transform = *self.cube.transform();
 		ctx.draw_mesh(&self.cube, &self.camera);
@@ -70,8 +70,8 @@ fn main() {
 				x as i32,
 				y as i32,
 				Cell {
-					fg: TermColor::transparent(),
-					bg: TermColor::rgba(color.r, color.g, color.b, color.a),
+					fg: Color::transparent(),
+					bg: color,
 					symbol: ' ',
 				},
 			);

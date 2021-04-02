@@ -9,12 +9,23 @@ edition = "2018"
 [dependencies]
 nalgebra = "0.21.1"
 noise = "0.6.0"
+# Terminal rendering
+mutunga = { git = "https://github.com/ryanw/mutunga-rs", optional = true }
 
 [dev-dependencies]
-# Terminal rendering
-mutunga = { git = "https://github.com/ryanw/mutunga-rs" }
-
 # Graphical rendering
+pixels = "0.0.4" 
 winit = "0.22.2"
 winit_input_helper = "0.7.0"
-pixels = "0.0.4"
+
+[[example]]
+name = "cube"
+required-features = ["mutunga"]
+
+[[example]]
+name = "mouse"
+required-features = ["mutunga"]
+
+[[example]]
+name = "terrain"
+required-features = ["mutunga"]

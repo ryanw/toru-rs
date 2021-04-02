@@ -1,4 +1,4 @@
-use mutunga::{Cell, Color as TermColor, Event, TerminalCanvas};
+use mutunga::{Cell, Color, Event, TerminalCanvas};
 use nalgebra as na;
 use std::f32::consts::PI;
 use std::{thread, time};
@@ -16,7 +16,7 @@ impl TerrainScene {
 		self.transform *= rot;
 	}
 
-	pub fn render(&self, ctx: &mut DrawContext) {
+	pub fn render(&self, ctx: &mut DrawContext<Color>) {
 		ctx.clear();
 		ctx.transform = self.transform;
 		ctx.draw_mesh(&self.terrain, &self.camera);
@@ -71,8 +71,8 @@ fn main() {
 				x as i32,
 				y as i32,
 				Cell {
-					fg: TermColor::transparent(),
-					bg: TermColor::rgba(color.r, color.g, color.b, color.a),
+					fg: Color::transparent(),
+					bg: Color::rgba(color.r, color.g, color.b, color.a),
 					symbol: ' ',
 				},
 			);

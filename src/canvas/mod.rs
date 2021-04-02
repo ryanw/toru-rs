@@ -6,19 +6,19 @@ use nalgebra as na;
 use std::time::Instant;
 
 const DRAW_NORMALS: bool = false;
-const DRAW_WIRES: bool = true;
+const DRAW_WIRES: bool = false;
 
 fn map(value: f32, old_min: f32, old_max: f32, new_min: f32, new_max: f32) -> f32 {
 	((value - old_min) * (new_max - new_min)) / (old_max - old_min) + new_min
 }
 
-pub struct DrawContext<'a> {
-	pub buffer: &'a mut Buffer<Color>,
+pub struct DrawContext<'a, P: Blendable> {
+	pub buffer: &'a mut Buffer<P>,
 	pub depth: &'a mut Buffer<f32>,
 	pub transform: na::Matrix4<f32>,
 }
 
-impl<'a> DrawContext<'a> {
+impl<'a, P: Blendable> DrawContext<'a, P> {
 	pub fn width(&self) -> u32 {
 		self.buffer.width()
 	}
@@ -28,7 +28,7 @@ impl<'a> DrawContext<'a> {
 	}
 
 	pub fn clear(&mut self) {
-		self.buffer.fill(Color::rgba(0, 0, 0, 0));
+		self.buffer.fill(P::default());
 		self.depth.fill(std::f32::INFINITY);
 	}
 
@@ -49,7 +49,7 @@ impl<'a> DrawContext<'a> {
 		p
 	}
 
-	fn clip_triangle_to_edges(&self, tri: &Triangle) -> Vec<Triangle> {
+	fn clip_triangle_to_edges(&self, tri: &Triangle<P>) -> Vec<Triangle<P>> {
 		let planes = [
 			// Left
 			Plane::new(na::Point3::new(-1.0, 0.0, 0.0), na::Vector3::new(1.0, 0.0, 0.0)),
@@ -74,7 +74,7 @@ impl<'a> DrawContext<'a> {
 		triangles
 	}
 
-	pub fn draw_line3(&mut self, line: &Line, color: &Color) {
+	pub fn draw_line3(&mut self, line: &Line, color: &P) {
 		// TODO ADD DEPTH TESTING
 		let x0 = line.start.x;
 		let y0 = line.start.y;
@@ -116,14 +116,14 @@ impl<'a> DrawContext<'a> {
 		}
 	}
 
-	pub fn wire_line(&mut self, line: &Line, color: &Color) {
+	pub fn wire_line(&mut self, line: &Line, color: &P) {
 		let p0 = self.view_to_screen(&line.start);
 		let p1 = self.view_to_screen(&line.end);
 
 		self.draw_line3(&Line::new(p0, p1), color);
 	}
 
-	pub fn wire_triangle(&mut self, tri: &Triangle, color: &Color) {
+	pub fn wire_triangle(&mut self, tri: &Triangle<P>, color: &P) {
 		let p0 = &tri.points[0];
 		let p1 = &tri.points[1];
 		let p2 = &tri.points[2];
@@ -133,7 +133,7 @@ impl<'a> DrawContext<'a> {
 		self.wire_line(&Line::new(p2.clone(), p0.clone()), color);
 	}
 
-	pub fn fill_triangle(&mut self, tri: &Triangle, color: &Color) {
+	pub fn fill_triangle(&mut self, tri: &Triangle<P>, color: &P) {
 		for tri in self.clip_triangle_to_edges(tri) {
 			let p0 = self.view_to_screen(&tri.points[0]);
 			let p1 = self.view_to_screen(&tri.points[1]);
@@ -164,12 +164,12 @@ impl<'a> DrawContext<'a> {
 
 			// Wireframe on top of triangle
 			if DRAW_WIRES {
-				self.wire_triangle(&tri, &Color::rgba(0, 0, 0, 100));
+				//self.wire_triangle(&tri, &Color::rgba(0, 0, 0, 100));
 			}
 		}
 	}
 
-	fn fill_flat_bottom_triangle(&mut self, tri: &Triangle, color: &Color) {
+	fn fill_flat_bottom_triangle(&mut self, tri: &Triangle, color: &P) {
 		let [p0, p1, p2] = tri.points;
 
 		let dy = p1.y - p0.y;
@@ -195,7 +195,7 @@ impl<'a> DrawContext<'a> {
 		}
 	}
 
-	fn fill_flat_top_triangle(&mut self, tri: &Triangle, color: &Color) {
+	fn fill_flat_top_triangle(&mut self, tri: &Triangle, color: &P) {
 		let [p0, p1, p2] = tri.points;
 
 		let dy = p2.y - p0.y;
@@ -221,7 +221,7 @@ impl<'a> DrawContext<'a> {
 		}
 	}
 
-	pub fn draw_normalized_line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: Color) {
+	pub fn draw_normalized_line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: P) {
 		let (w, h) = (self.buffer.width() as f32, self.buffer.height() as f32);
 		self.draw_line(
 			(w / 2.0 + w * x0) as i32,
@@ -232,7 +232,7 @@ impl<'a> DrawContext<'a> {
 		);
 	}
 
-	pub fn draw_mesh(&mut self, mesh: &dyn Mesh, camera: &Camera) {
+	pub fn draw_mesh(&mut self, mesh: &dyn Mesh<P>, camera: &Camera) {
 		let light_dir = na::Vector3::new(0.8, 0.3, 0.8).normalize();
 		let model = self.transform;
 		let view = camera.view();
@@ -241,7 +241,7 @@ impl<'a> DrawContext<'a> {
 		let near_plane = Plane::new(na::Point3::new(0.0, 0.0, -0.1), na::Vector3::new(0.0, 0.0, -1.0));
 		for tri in mesh.triangles() {
 			// Triangle in world space
-			let world_tri = Triangle::new(
+			let world_tri: Triangle<P> = Triangle::new(
 				model.transform_point(&tri.points[0]),
 				model.transform_point(&tri.points[1]),
 				model.transform_point(&tri.points[2]),
@@ -259,33 +259,43 @@ impl<'a> DrawContext<'a> {
 				dot = 0.1;
 			}
 
-			let mut color = tri.color.unwrap_or(Color::rgb(200, 0, 0));
+			let mut color: P = tri.color.unwrap_or(P::default());
 
-			// Adjust color lighting
+			// FIXME Adjust color lighting
+			color.set_brightness(dot);
+			/*
 			color.r = (color.r as f32 * dot) as u8;
 			color.g = (color.g as f32 * dot) as u8;
 			color.b = (color.b as f32 * dot) as u8;
+			*/
 
-			let view_tri = Triangle::new(
+			let view_tri: Triangle<P> = Triangle::new(
 				view.transform_point(&world_tri.points[0]),
 				view.transform_point(&world_tri.points[1]),
 				view.transform_point(&world_tri.points[2]),
 			);
 			// Clip triangles that stick into the camera
 			for clip_tri in view_tri.clip_to_plane(&near_plane) {
-				let screen_tri = Triangle::new(
+				let screen_tri: Triangle<P> = Triangle::new(
 					proj.transform_point(&clip_tri.points[0]),
 					proj.transform_point(&clip_tri.points[1]),
 					proj.transform_point(&clip_tri.points[2]),
 				);
 				self.fill_triangle(&screen_tri, &color);
 
+				// FIXME - swap Color for P
+				/*
 				// Draw debug normal
 				if DRAW_NORMALS {
 					let view_normal = view.transform_vector(&world_normal).normalize();
 					let _screen_normal = proj.transform_vector(&view_normal).normalize();
 
-					let color = Color::rgba((world_normal.x * 255.0) as u8, (world_normal.y * 255.0) as u8, (world_normal.z * 255.0) as u8, 255);
+					let color = Color::rgba(
+						(world_normal.x * 255.0) as u8,
+						(world_normal.y * 255.0) as u8,
+						(world_normal.z * 255.0) as u8,
+						255,
+					);
 					let p0 = na::Point3::from_coordinates(
 						(world_tri.points[0].coords + world_tri.points[1].coords + world_tri.points[2].coords) / 3.0,
 					);
@@ -295,15 +305,16 @@ impl<'a> DrawContext<'a> {
 						self.wire_line(&line, &color);
 					}
 				}
+				*/
 			}
 		}
 	}
 
-	pub fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: Color) {
+	pub fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: P) {
 		self.buffer.draw_line(x0, y0, x1, y1, color);
 	}
 
-	pub fn draw_hline(&mut self, x0: i32, z0: f32, x1: i32, z1: f32, y: i32, color: Color) {
+	pub fn draw_hline(&mut self, x0: i32, z0: f32, x1: i32, z1: f32, y: i32, color: P) {
 		if x0 == x1 {
 			return;
 		}
@@ -328,17 +339,23 @@ impl<'a> DrawContext<'a> {
 	}
 }
 
-pub struct Canvas {
+pub struct Canvas<P: Blendable = Color> {
 	last_tick_at: Instant,
-	callback: Box<dyn FnMut(&mut DrawContext, f32)>,
-	buffer: Buffer<Color>,
+	callback: Box<dyn FnMut(&mut DrawContext<P>, f32)>,
+	buffer: Buffer<P>,
 	depth: Buffer<f32>,
 	transform_stack: Vec<na::Matrix4<f32>>,
 	transform: na::Matrix4<f32>,
 }
 
-impl Canvas {
-	pub fn new(width: u32, height: u32, callback: impl FnMut(&mut DrawContext, f32) + 'static) -> Self {
+impl Canvas<Color> {
+	pub fn as_bytes(&self) -> &[u8] {
+		self.buffer.as_bytes()
+	}
+}
+
+impl<P: Blendable> Canvas<P> {
+	pub fn new(width: u32, height: u32, callback: impl FnMut(&mut DrawContext<P>, f32) + 'static) -> Self {
 		Self {
 			last_tick_at: Instant::now(),
 			callback: Box::new(callback),
@@ -349,11 +366,7 @@ impl Canvas {
 		}
 	}
 
-	pub fn as_bytes(&self) -> &[u8] {
-		self.buffer.as_bytes()
-	}
-
-	pub fn draw_pixels(&mut self, mut callback: impl FnMut(u32, u32, Color)) {
+	pub fn draw_pixels(&mut self, mut callback: impl FnMut(u32, u32, P)) {
 		let (w, h) = self.buffer.size();
 		for y in 0..h {
 			for x in 0..w {
@@ -375,11 +388,11 @@ impl Canvas {
 		(self.callback)(&mut context, dt.as_secs_f32());
 	}
 
-	pub fn buffer(&self) -> &Buffer<Color> {
+	pub fn buffer(&self) -> &Buffer<P> {
 		&self.buffer
 	}
 
-	pub fn buffer_mut(&mut self) -> &mut Buffer<Color> {
+	pub fn buffer_mut(&mut self) -> &mut Buffer<P> {
 		&mut self.buffer
 	}
 
@@ -399,7 +412,7 @@ impl Canvas {
 		self.depth.resize(w, h);
 	}
 
-	pub fn fill(&mut self, color: Color) {
+	pub fn fill(&mut self, color: P) {
 		self.buffer.fill(color);
 		self.depth.fill(std::f32::INFINITY);
 	}

@@ -2,7 +2,7 @@ use nalgebra as na;
 use std::f32::consts::PI;
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
-use toru::{Camera, Canvas, Color, Cube, Terrain, DrawContext, Mesh, StaticMesh};
+use toru::{Camera, Canvas, Color, Cube, DrawContext, Mesh, StaticMesh, Terrain};
 
 use pixels::{wgpu::Surface, Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
@@ -38,7 +38,7 @@ impl MouseScene {
 		}
 	}
 
-	pub fn render(&self, ctx: &mut DrawContext) {
+	pub fn render(&self, ctx: &mut DrawContext<Color>) {
 		ctx.clear();
 		ctx.transform = self.transform;
 		ctx.draw_mesh(self.mesh.as_ref(), &self.camera);
@@ -46,7 +46,6 @@ impl MouseScene {
 }
 
 fn main() {
-
 	let mut width = WIDTH;
 	let mut height = HEIGHT;
 

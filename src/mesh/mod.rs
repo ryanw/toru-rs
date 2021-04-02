@@ -8,6 +8,7 @@ pub use cube::*;
 mod terrain;
 pub use terrain::*;
 mod material;
+use crate::buffer::Blendable;
 use crate::color::Color;
 pub use material::*;
 
@@ -52,31 +53,31 @@ mod objfile {
 	}
 }
 
-pub trait Mesh {
-	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a>;
+pub trait Mesh<P: Blendable = Color> {
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle<P>> + 'a>;
 	fn len(&self) -> usize {
 		0
 	}
-	fn color(&self) -> Option<Color> {
+	fn color(&self) -> Option<P> {
 		None
 	}
 }
 
 #[derive(Default, Clone)]
-pub struct StaticMesh {
+pub struct StaticMesh<P: Blendable = Color> {
 	pub vertices: Vec<na::Point3<f32>>,
 	pub normals: Vec<na::Vector3<f32>>,
 	pub triangles: Vec<(usize, usize, usize)>,
-	pub colors: Vec<Color>,
+	pub colors: Vec<P>,
 }
 
-impl StaticMesh {
+impl<P: Blendable> StaticMesh<P> {
 	pub fn new() -> Self {
 		Default::default()
 	}
 
-	pub fn sphere(radius: f32, resolution: u8, color: Color) -> Self {
-		let mut mesh = StaticMesh::default();
+	pub fn sphere(radius: f32, resolution: u8, color: P) -> Self {
+		let mut mesh: StaticMesh<P> = StaticMesh::default();
 		let t = ((1.0 + 5.0f32.sqrt()) / 2.0);
 
 		mesh.vertices
@@ -162,15 +163,6 @@ impl StaticMesh {
 
 		mesh.triangles = triangles;
 
-		for t in &mut mesh.triangles {
-			let p = mesh.vertices[t.0];
-			let color = match (p.coords.norm() * 10.0) as i32 {
-				-100..=100 => Color::green(),
-				_ => Color::blue(),
-			};
-			mesh.colors.push(color);
-		}
-
 		for v in &mut mesh.vertices {
 			v.coords *= radius;
 		}
@@ -202,8 +194,8 @@ impl StaticMesh {
 	}
 }
 
-impl Mesh for StaticMesh {
-	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
+impl<P: Blendable> Mesh<P> for StaticMesh<P> {
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle<P>> + 'a> {
 		Box::new(StaticMeshIterator::new(self))
 	}
 
@@ -212,25 +204,25 @@ impl Mesh for StaticMesh {
 	}
 }
 
-pub struct StaticMeshIterator<'a> {
+pub struct StaticMeshIterator<'a, P: Blendable> {
 	current: usize,
-	mesh: &'a StaticMesh,
+	mesh: &'a StaticMesh<P>,
 }
 
-impl<'a> StaticMeshIterator<'a> {
-	pub fn new(mesh: &'a StaticMesh) -> Self {
+impl<'a, P: Blendable> StaticMeshIterator<'a, P> {
+	pub fn new(mesh: &'a StaticMesh<P>) -> Self {
 		Self { current: 0, mesh }
 	}
 }
 
-impl<'a> ExactSizeIterator for StaticMeshIterator<'a> {
+impl<'a, P: Blendable> ExactSizeIterator for StaticMeshIterator<'a, P> {
 	fn len(&self) -> usize {
 		self.mesh.triangles.len()
 	}
 }
 
-impl<'a> Iterator for StaticMeshIterator<'a> {
-	type Item = Triangle;
+impl<'a, P: Blendable> Iterator for StaticMeshIterator<'a, P> {
+	type Item = Triangle<P>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.current >= self.len() {
@@ -247,9 +239,9 @@ impl<'a> Iterator for StaticMeshIterator<'a> {
 			.norm()
 			.abs() - 9.0;
 		let color = if self.current < self.mesh.colors.len() {
-			 self.mesh.colors[self.current]
+			self.mesh.colors[self.current]
 		} else {
-			Color::red()
+			P::default()
 		};
 
 		tri.color = Some(color);

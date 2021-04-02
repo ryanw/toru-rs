@@ -1,22 +1,23 @@
 use super::{Mesh, Triangle};
+use crate::buffer::Blendable;
 use crate::color::Color;
 use nalgebra as na;
 
 #[derive(Clone)]
-pub struct Cube {
+pub struct Cube<P: Blendable = Color> {
 	transform: na::Matrix4<f32>,
 	size: f32,
-	color: Color,
+	color: P,
 }
 
-impl Mesh for Cube {
-	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
+impl<P: Blendable> Mesh<P> for Cube<P> {
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle<P>> + 'a> {
 		Box::new(CubeIterator::new(self))
 	}
 }
 
-impl Cube {
-	pub fn new(size: f32, color: Color) -> Self {
+impl<P: Blendable> Cube<P> {
+	pub fn new(size: f32, color: P) -> Self {
 		Self {
 			size,
 			color,
@@ -33,14 +34,14 @@ impl Cube {
 	}
 }
 
-pub struct CubeIterator<'a> {
+pub struct CubeIterator<'a, P: Blendable> {
 	current: usize,
 	space: f32,
-	cube: &'a Cube,
+	cube: &'a Cube<P>,
 }
 
-impl<'a> CubeIterator<'a> {
-	pub fn new(cube: &'a Cube) -> Self {
+impl<'a, P: Blendable> CubeIterator<'a, P> {
+	pub fn new(cube: &'a Cube<P>) -> Self {
 		Self {
 			current: 0,
 			space: 0.0,
@@ -49,8 +50,8 @@ impl<'a> CubeIterator<'a> {
 	}
 }
 
-impl<'a> Iterator for CubeIterator<'a> {
-	type Item = Triangle;
+impl<'a, P: Blendable> Iterator for CubeIterator<'a, P> {
+	type Item = Triangle<P>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.current > 11 {

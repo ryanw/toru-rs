@@ -1,14 +1,15 @@
+use crate::buffer::Blendable;
 use crate::color::Color;
 use nalgebra as na;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Triangle {
+pub struct Triangle<P: Blendable = Color> {
 	pub points: [na::Point3<f32>; 3],
 	pub normal: na::Vector3<f32>,
-	pub color: Option<Color>,
+	pub color: Option<P>,
 }
 
-impl Triangle {
+impl<P: Blendable> Triangle<P> {
 	pub fn new(p0: na::Point3<f32>, p1: na::Point3<f32>, p2: na::Point3<f32>) -> Self {
 		Self::from_points([p0, p1, p2])
 	}
@@ -24,7 +25,7 @@ impl Triangle {
 		}
 	}
 
-	pub fn clip_to_plane(&self, plane: &Plane) -> Vec<Triangle> {
+	pub fn clip_to_plane(&self, plane: &Plane) -> Vec<Triangle<P>> {
 		let mut inside = Vec::with_capacity(3);
 		let mut outside = Vec::with_capacity(3);
 

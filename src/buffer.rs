@@ -1,21 +1,50 @@
-use crate::color::Color;
 use crate::geom::Rect;
 use std::mem::size_of;
 
 pub trait Blendable: Default + Copy + PartialEq {
-	fn blend(&self, other: &Self) -> Self {
+	fn blend(&self, _other: &Self) -> Self {
 		self.clone()
 	}
+
+	fn set_brightness(&mut self, _brightness: f32) {}
 }
 
 impl Blendable for f32 {
 	fn blend(&self, other: &f32) -> f32 {
 		if other < self {
 			self.clone()
-		}
-		else {
+		} else {
 			other.clone()
 		}
+	}
+
+	fn set_brightness(&mut self, brightness: f32) {
+		*self *= brightness;
+	}
+}
+
+#[cfg(feature = "mutunga")]
+impl Blendable for mutunga::Color {
+	fn blend(&self, bg: &mutunga::Color) -> mutunga::Color {
+		let (fg_r, fg_g, fg_b, fg_a) = self.as_floats();
+		let (bg_r, bg_g, bg_b, bg_a) = bg.as_floats();
+
+		let a = (1.0 - fg_a) * bg_a + fg_a;
+		let r = ((1.0 - fg_a) * bg_a * bg_r + fg_a * fg_r) / a;
+		let g = ((1.0 - fg_a) * bg_a * bg_g + fg_a * fg_g) / a;
+		let b = ((1.0 - fg_a) * bg_a * bg_b + fg_a * fg_b) / a;
+		mutunga::Color::rgba(
+			(r * 255.0) as u8,
+			(g * 255.0) as u8,
+			(b * 255.0) as u8,
+			(a * 255.0) as u8,
+		)
+	}
+
+	fn set_brightness(&mut self, brightness: f32) {
+		self.r = (self.r as f32 * brightness) as u8;
+		self.g = (self.g as f32 * brightness) as u8;
+		self.b = (self.b as f32 * brightness) as u8;
 	}
 }
 
