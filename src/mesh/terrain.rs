@@ -1,7 +1,5 @@
 use super::{Mesh, Triangle};
-
 use crate::buffer::Blendable;
-use crate::color::Color;
 use nalgebra as na;
 use noise::{Fbm, MultiFractal, NoiseFn, Seedable};
 
@@ -15,7 +13,8 @@ pub struct Terrain {
 #[cfg(not(feature = "mutunga"))]
 impl<P: Blendable + 'static> Mesh<P> for Terrain {
 	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
-		Box::new(TerrainIterator::new(self))
+		let iter: TerrainIterator<P> = TerrainIterator::new(self);
+		Box::new(iter)
 	}
 }
 

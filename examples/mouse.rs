@@ -47,14 +47,7 @@ fn main() {
 
 	// Create a scene with just a single mesh.
 	let mut mesh = StaticMesh::load_obj("examples/assets/suzanne.obj").expect("Unable to open mesh file");
-	for t in &mut mesh.triangles {
-		let p = mesh.vertices[t.0];
-		let color = match (p.coords.norm() * 10.0) as i32 {
-			-100..=100 => Color::green(),
-			_ => Color::blue(),
-		};
-		mesh.colors.push(color);
-	}
+	mesh.set_material(Color::green().into());
 	let mut scene = Arc::new(Mutex::new(MouseScene {
 		mouse_down: false,
 		mouse_origin: (0, 0),

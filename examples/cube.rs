@@ -31,7 +31,7 @@ fn main() {
 	// Create a scene with just a single cube.
 	let mut scene = CubeScene {
 		camera: Camera::new(width as _, height as _),
-		cube: Cube::new(1.0, Color::rgb(0, 100, 255)),
+		cube: Cube::new(1.0, Color::rgb(0, 100, 255).into()),
 	};
 
 	// Init the 3D canvas

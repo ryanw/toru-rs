@@ -6,10 +6,8 @@ pub use geom::*;
 mod cube;
 pub use cube::*;
 mod terrain;
-pub use terrain::*;
-mod material;
 use crate::{Blendable, Color, Material, Texture};
-pub use material::*;
+pub use terrain::*;
 
 mod objfile {
 	use nalgebra as na;
@@ -74,6 +72,7 @@ pub struct StaticMesh<P: Blendable = Color> {
 	pub normals: Vec<na::Vector3<f32>>,
 	pub triangles: Vec<(usize, usize, usize)>,
 	pub colors: Vec<P>,
+	pub material: Option<Material<P>>,
 }
 
 impl<P: Blendable> StaticMesh<P> {
@@ -197,6 +196,10 @@ impl<P: Blendable> StaticMesh<P> {
 
 		Ok(obj)
 	}
+
+	pub fn set_material(&mut self, material: Material<P>) {
+		self.material = Some(material);
+	}
 }
 
 impl<P: Blendable> Mesh<P> for StaticMesh<P> {
@@ -206,6 +209,10 @@ impl<P: Blendable> Mesh<P> for StaticMesh<P> {
 
 	fn len(&self) -> usize {
 		StaticMeshIterator::new(self).len()
+	}
+
+	fn material(&self) -> Option<&Material<P>> {
+		self.material.as_ref()
 	}
 }
 
