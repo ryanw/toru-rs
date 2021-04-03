@@ -525,18 +525,15 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		let light_dir = na::Vector3::new(0.8, 0.3, 0.8).normalize();
 		let model = self.transform;
 		let view = camera.view();
-		let proj = camera.projection().to_homogeneous();
+		let proj = camera.projection();
 		let near_plane = Plane::new(na::Point3::new(0.0, 0.0, -0.1), na::Vector3::new(0.0, 0.0, -1.0));
-		for tri in mesh.triangles() {
+		for mut tri in mesh.triangles() {
 			// Triangle in world space
-			let world_tri: Triangle = Triangle::new(
-				model.transform_point(&tri.points[0]),
-				model.transform_point(&tri.points[1]),
-				model.transform_point(&tri.points[2]),
-			);
+			tri.transform_mut(&model);
 			let world_normal = model.transform_vector(&tri.normal).normalize();
+
 			// Backface culling
-			let camera_ray = world_tri.points[0] - camera.position;
+			let camera_ray = tri.points[0] - camera.position;
 			if world_normal.dot(&camera_ray) < 0.0 {
 				continue;
 			}
@@ -547,39 +544,12 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 				brightness = 0.1;
 			}
 
-			let view_tri: Triangle = Triangle::new(
-				view.transform_point(&world_tri.points[0]),
-				view.transform_point(&world_tri.points[1]),
-				view.transform_point(&world_tri.points[2]),
-			);
+			tri.transform_mut(&view);
 			// Clip triangles that stick into the camera
-			for clip_tri in view_tri.clip_to_plane(&near_plane) {
-				// Using homogeneous space so we can project the texture coords too
-				let p0 = clip_tri.points[0];
-				let v0 = proj.transform_vector(&na::Vector4::new(p0.x, p0.y, p0.z, 1.0));
-				let p1 = clip_tri.points[1];
-				let v1 = proj.transform_vector(&na::Vector4::new(p1.x, p1.y, p1.z, 1.0));
-				let p2 = clip_tri.points[2];
-				let v2 = proj.transform_vector(&na::Vector4::new(p2.x, p2.y, p2.z, 1.0));
+			for mut tri in tri.clip_to_plane(&near_plane) {
+				tri.transform_mut(&proj);
 
-				let mut screen_tri: Triangle = Triangle::new(
-					na::Point3::new(v0.x / v0.w, v0.y / v0.w, v0.z / v0.w),
-					na::Point3::new(v1.x / v1.w, v1.y / v1.w, v1.z / v1.w),
-					na::Point3::new(v2.x / v2.w, v2.y / v2.w, v2.z / v2.w),
-				)
-				// FIXME clip UVs
-				.uvw(tri.uvs[0].clone(), tri.uvs[1].clone(), tri.uvs[2].clone());
-				screen_tri.uvs[0].x /= v0.w;
-				screen_tri.uvs[1].x /= v1.w;
-				screen_tri.uvs[2].x /= v2.w;
-				screen_tri.uvs[0].y /= v0.w;
-				screen_tri.uvs[1].y /= v1.w;
-				screen_tri.uvs[2].y /= v2.w;
-				screen_tri.uvs[0].z /= v0.w;
-				screen_tri.uvs[1].z /= v1.w;
-				screen_tri.uvs[2].z /= v2.w;
-
-				self.texture_triangle(&screen_tri, &material, brightness);
+				self.texture_triangle(&tri, &material, brightness);
 
 				// FIXME - swap Color for P
 				/*
