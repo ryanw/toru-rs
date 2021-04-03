@@ -152,7 +152,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 					// If we already have an aligned edge, we only need 1 triangle
 					if points[0].0.y == points[1].0.y {
 						self.texture_flat_top_triangle(
-							&Triangle::new(points[0].0, points[1].0, points[2].0).uv(
+							&Triangle::new(points[0].0, points[1].0, points[2].0).uvw(
 								points[0].1,
 								points[1].1,
 								points[2].1,
@@ -162,7 +162,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 						);
 					} else if points[1].0.y == points[2].0.y {
 						self.texture_flat_bottom_triangle(
-							&Triangle::new(points[0].0, points[1].0, points[2].0).uv(
+							&Triangle::new(points[0].0, points[1].0, points[2].0).uvw(
 								points[0].1,
 								points[1].1,
 								points[2].1,
@@ -178,17 +178,18 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 							points[1].0.y,
 							points[0].0.z + dy * (points[2].0.z - points[0].0.z),
 						);
-						let mid_uv = na::Point2::new(
+						let mid_uv = na::Vector3::new(
 							points[0].1.x + dy * (points[2].1.x - points[0].1.x),
 							points[0].1.y + dy * (points[2].1.y - points[0].1.y),
+							points[0].1.z + dy * (points[2].1.z - points[0].1.z),
 						);
 						self.texture_flat_top_triangle(
-							&Triangle::new(points[1].0, mid, points[2].0).uv(points[1].1, mid_uv, points[2].1),
+							&Triangle::new(points[1].0, mid, points[2].0).uvw(points[1].1, mid_uv, points[2].1),
 							material,
 							brightness,
 						);
 						self.texture_flat_bottom_triangle(
-							&Triangle::new(points[0].0, mid, points[1].0).uv(points[0].1, mid_uv, points[1].1),
+							&Triangle::new(points[0].0, mid, points[1].0).uvw(points[0].1, mid_uv, points[1].1),
 							material,
 							brightness,
 						);
@@ -247,20 +248,24 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 				let dy0 = p1.y - p0.y;
 				let du0 = t1.x - t0.x;
 				let dv0 = t1.y - t0.y;
+				let dw0 = t1.z - t0.z;
 
 				let dx1 = p2.x - p0.x;
 				let dy1 = p2.y - p0.y;
 				let du1 = t2.x - t0.x;
 				let dv1 = t2.y - t0.y;
+				let dw1 = t2.z - t0.z;
 
 				let slope0 = dx0 / dy0.abs();
 				let slope1 = dx1 / dy1.abs();
 
 				let slopeu0 = du0 / dy0.abs();
 				let slopev0 = dv0 / dy0.abs();
+				let slopew0 = dw0 / dy0.abs();
 
 				let slopeu1 = du1 / dy1.abs();
 				let slopev1 = dv1 / dy1.abs();
+				let slopew1 = dw1 / dy1.abs();
 
 				let zslope0 = (p1.z - p0.z) / dy0;
 				let zslope1 = (p2.z - p0.z) / dy0;
@@ -272,18 +277,22 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 
 				let mut u0 = t0.x;
 				let mut v0 = t0.y;
+				let mut w0 = t0.z;
 				let mut u1 = t0.x;
 				let mut v1 = t0.y;
+				let mut w1 = t0.z;
 
 				let mut y = p0.y as i32;
 				while y <= p1.y as i32 {
 					if x0 != x1 {
 						let (u0, u1) = if x0 < x1 { (u0, u1) } else { (u1, u0) };
 						let (v0, v1) = if x0 < x1 { (v0, v1) } else { (v1, v0) };
+						let (w0, w1) = if x0 < x1 { (w0, w1) } else { (w1, w0) };
 						let (x0, x1, z0, z1) = if x0 < x1 { (x0, x1, z0, z1) } else { (x1, x0, z1, z0) };
 
 						let mut u = u0;
 						let mut v = v0;
+						let mut w = w0;
 						let mut t_step = 1.0 / (x1 - x0);
 						let mut t = 0.0;
 
@@ -302,8 +311,9 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 							if let Some(dst) = self.buffer.get_mut(x, y) {
 								u = (1.0 - t) * u0 + t * u1;
 								v = (1.0 - t) * v0 + t * v1;
+								w = (1.0 - t) * w0 + t * w1;
 
-								if let Some(color) = texture.get_normalized_pixel(u, v) {
+								if let Some(color) = texture.get_normalized_pixel(u / w, v / w) {
 									let mut color = color.clone();
 									color.set_brightness(brightness);
 									*dst = color
@@ -321,8 +331,10 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 					x1 += slope1;
 					u0 += slopeu0;
 					v0 += slopev0;
+					w0 += slopew0;
 					u1 += slopeu1;
 					v1 += slopev1;
+					w1 += slopew1;
 					z0 += zslope0;
 					z1 += zslope1;
 				}
@@ -343,20 +355,24 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 				let dy0 = p2.y - p0.y;
 				let du0 = t2.x - t0.x;
 				let dv0 = t2.y - t0.y;
+				let dw0 = t2.z - t0.z;
 
 				let dx1 = p2.x - p1.x;
 				let dy1 = p2.y - p1.y;
 				let du1 = t2.x - t1.x;
 				let dv1 = t2.y - t1.y;
+				let dw1 = t2.z - t1.z;
 
 				let slope0 = dx0 / dy0.abs();
 				let slope1 = dx1 / dy1.abs();
 
 				let slopeu0 = du0 / dy0.abs();
 				let slopev0 = dv0 / dy0.abs();
+				let slopew0 = dw0 / dy0.abs();
 
 				let slopeu1 = du1 / dy1.abs();
 				let slopev1 = dv1 / dy1.abs();
+				let slopew1 = dw1 / dy1.abs();
 
 				let zslope0 = (p2.z - p0.z) / dy0;
 				let zslope1 = (p2.z - p1.z) / dy0;
@@ -368,22 +384,27 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 
 				let mut u0 = t2.x;
 				let mut v0 = t2.y;
+				let mut w0 = t2.z;
 				let mut u1 = t2.x;
 				let mut v1 = t2.y;
+				let mut w1 = t2.z;
 
 				let mut y = p2.y as i32;
 				while y > p0.y as i32 {
 					if x0 != x1 {
 						let (u0, u1) = if x0 < x1 { (u0, u1) } else { (u1, u0) };
 						let (v0, v1) = if x0 < x1 { (v0, v1) } else { (v1, v0) };
+						let (w0, w1) = if x0 < x1 { (w0, w1) } else { (w1, w0) };
 						let (x0, x1, z0, z1) = if x0 < x1 { (x0, x1, z0, z1) } else { (x1, x0, z1, z0) };
 
 						let mut u = u0;
 						let mut v = v0;
+						let mut w = w0;
 						let mut t_step = 1.0 / (x1 - x0);
 						let mut t = 0.0;
 						u = (1.0 - t) * u0 + t * u1;
 						v = (1.0 - t) * v0 + t * v1;
+						w = (1.0 - t) * w0 + t * w1;
 
 						let z_step = (z1 - z0) / (x1 - x0 + 1.0);
 						let mut z = z0;
@@ -400,8 +421,9 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 							if let Some(dst) = self.buffer.get_mut(x, y) {
 								u = (1.0 - t) * u0 + t * u1;
 								v = (1.0 - t) * v0 + t * v1;
+								w = (1.0 - t) * w0 + t * w1;
 
-								if let Some(color) = texture.get_normalized_pixel(u, v) {
+								if let Some(color) = texture.get_normalized_pixel(u / w, v / w) {
 									let mut color = color.clone();
 									color.set_brightness(brightness);
 									*dst = color
@@ -419,8 +441,10 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 					x1 -= slope1;
 					u0 -= slopeu0;
 					v0 -= slopev0;
+					w0 -= slopew0;
 					u1 -= slopeu1;
 					v1 -= slopev1;
+					w1 -= slopew1;
 					z0 -= zslope0;
 					z1 -= zslope1;
 				}
@@ -501,8 +525,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		let light_dir = na::Vector3::new(0.8, 0.3, 0.8).normalize();
 		let model = self.transform;
 		let view = camera.view();
-		let proj = camera.projection();
-		// FIXME this is backwards
+		let proj = camera.projection().to_homogeneous();
 		let near_plane = Plane::new(na::Point3::new(0.0, 0.0, -0.1), na::Vector3::new(0.0, 0.0, -1.0));
 		for tri in mesh.triangles() {
 			// Triangle in world space
@@ -531,13 +554,30 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 			);
 			// Clip triangles that stick into the camera
 			for clip_tri in view_tri.clip_to_plane(&near_plane) {
-				let screen_tri: Triangle = Triangle::new(
-					proj.transform_point(&clip_tri.points[0]),
-					proj.transform_point(&clip_tri.points[1]),
-					proj.transform_point(&clip_tri.points[2]),
+				// Using homogeneous space so we can project the texture coords too
+				let p0 = clip_tri.points[0];
+				let v0 = proj.transform_vector(&na::Vector4::new(p0.x, p0.y, p0.z, 1.0));
+				let p1 = clip_tri.points[1];
+				let v1 = proj.transform_vector(&na::Vector4::new(p1.x, p1.y, p1.z, 1.0));
+				let p2 = clip_tri.points[2];
+				let v2 = proj.transform_vector(&na::Vector4::new(p2.x, p2.y, p2.z, 1.0));
+
+				let mut screen_tri: Triangle = Triangle::new(
+					na::Point3::new(v0.x / v0.w, v0.y / v0.w, v0.z / v0.w),
+					na::Point3::new(v1.x / v1.w, v1.y / v1.w, v1.z / v1.w),
+					na::Point3::new(v2.x / v2.w, v2.y / v2.w, v2.z / v2.w),
 				)
 				// FIXME clip UVs
-				.uv(tri.uvs[0].clone(), tri.uvs[1].clone(), tri.uvs[2].clone());
+				.uvw(tri.uvs[0].clone(), tri.uvs[1].clone(), tri.uvs[2].clone());
+				screen_tri.uvs[0].x /= v0.w;
+				screen_tri.uvs[1].x /= v1.w;
+				screen_tri.uvs[2].x /= v2.w;
+				screen_tri.uvs[0].y /= v0.w;
+				screen_tri.uvs[1].y /= v1.w;
+				screen_tri.uvs[2].y /= v2.w;
+				screen_tri.uvs[0].z /= v0.w;
+				screen_tri.uvs[1].z /= v1.w;
+				screen_tri.uvs[2].z /= v2.w;
 
 				self.texture_triangle(&screen_tri, &material, brightness);
 

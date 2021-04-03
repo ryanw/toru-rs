@@ -5,7 +5,8 @@ use nalgebra as na;
 pub struct Triangle {
 	pub points: [na::Point3<f32>; 3],
 	pub normal: na::Vector3<f32>,
-	pub uvs: [na::Point2<f32>; 3],
+	// Z value is for perspective projection
+	pub uvs: [na::Vector3<f32>; 3],
 }
 
 impl Triangle {
@@ -14,6 +15,14 @@ impl Triangle {
 	}
 
 	pub fn uv(mut self, p0: na::Point2<f32>, p1: na::Point2<f32>, p2: na::Point2<f32>) -> Self {
+		self.uvw(
+			na::Vector3::new(p0.x, p0.y, 1.0),
+			na::Vector3::new(p1.x, p1.y, 1.0),
+			na::Vector3::new(p2.x, p2.y, 1.0),
+		)
+	}
+
+	pub fn uvw(mut self, p0: na::Vector3<f32>, p1: na::Vector3<f32>, p2: na::Vector3<f32>) -> Self {
 		self.uvs = [p0, p1, p2];
 		self
 	}
@@ -26,9 +35,9 @@ impl Triangle {
 			points,
 			normal,
 			uvs: [
-				na::Point2::new(0.0, 0.0),
-				na::Point2::new(0.0, 0.0),
-				na::Point2::new(0.0, 0.0),
+				na::Vector3::new(0.0, 0.0, 1.0),
+				na::Vector3::new(0.0, 0.0, 1.0),
+				na::Vector3::new(0.0, 0.0, 1.0),
 			],
 		}
 	}
