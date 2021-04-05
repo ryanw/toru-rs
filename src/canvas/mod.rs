@@ -44,7 +44,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		let (w, h) = (self.buffer.width() as f32, self.buffer.height() as f32);
 		let mut p = p.clone();
 		p.x = (w * (p.x / 2.0 + 0.5)).round();
-		p.y = h - (h * (p.y / 2.0 + 0.5)).round();
+		p.y = h - (h * (p.y / 2.0 + 0.5)).round() - 1.0;
 		p
 	}
 
@@ -54,9 +54,9 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 			Plane::new(na::Point3::new(-1.0, 0.0, 0.0), na::Vector3::new(1.0, 0.0, 0.0)),
 			// Right
 			Plane::new(na::Point3::new(1.0, 0.0, 0.0), na::Vector3::new(-1.0, 0.0, 0.0)),
-			// Top
-			Plane::new(na::Point3::new(0.0, -1.0, 0.0), na::Vector3::new(0.0, 1.0, 0.0)),
 			// Bottom
+			Plane::new(na::Point3::new(0.0, -1.0, 0.0), na::Vector3::new(0.0, 1.0, 0.0)),
+			// Top
 			Plane::new(na::Point3::new(0.0, 1.0, 0.0), na::Vector3::new(0.0, -1.0, 0.0)),
 		];
 
