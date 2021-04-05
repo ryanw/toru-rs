@@ -7,6 +7,7 @@ mod cube;
 pub use cube::*;
 mod terrain;
 use crate::{Blendable, Color, Material, Texture};
+use std::ops::Deref;
 pub use terrain::*;
 
 mod objfile {
@@ -63,6 +64,24 @@ pub trait Mesh<P: Blendable = Color> {
 
 	fn material(&self) -> Option<&Material<P>> {
 		None
+	}
+}
+
+impl<P: Blendable> Mesh<P> for Box<dyn Mesh<P>> {
+	fn triangles<'a>(&'a self) -> Box<dyn Iterator<Item = Triangle> + 'a> {
+		self.deref().triangles()
+	}
+
+	fn len(&self) -> usize {
+		self.deref().len()
+	}
+
+	fn color(&self) -> Option<P> {
+		self.deref().color()
+	}
+
+	fn material(&self) -> Option<&Material<P>> {
+		self.deref().material()
 	}
 }
 
