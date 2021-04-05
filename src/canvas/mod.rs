@@ -135,7 +135,9 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 	pub fn texture_triangle(&mut self, tri: &Triangle, material: &Material<P>, brightness: f32) {
 		match material {
 			Material::Color(color) => {
-				self.fill_triangle(tri, color);
+				let mut color = color.clone();
+				color.set_brightness(brightness);
+				self.fill_triangle(tri, &color);
 			}
 			_ => {
 				for tri in self.clip_triangle_to_edges(tri) {
