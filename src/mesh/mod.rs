@@ -99,7 +99,7 @@ impl<P: Blendable> StaticMesh<P> {
 		Default::default()
 	}
 
-	pub fn sphere(radius: f32, resolution: u8, color: P) -> Self {
+	pub fn sphere(radius: f32, resolution: u8) -> Self {
 		let mut mesh: StaticMesh<P> = StaticMesh::default();
 		let t = ((1.0 + 5.0f32.sqrt()) / 2.0);
 
