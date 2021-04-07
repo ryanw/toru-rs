@@ -15,7 +15,7 @@ impl Default for Camera {
 			width: Default::default(),
 			height: Default::default(),
 			projection: na::Perspective3::new(1.0, 3.14 / 4.0, 0.1, 1000.0),
-			position: na::Point3::new(0.0, 0.0, -3.0),
+			position: na::Point3::new(0.0, 0.0, -1.5),
 			rotation: na::Vector3::new(0.0, 0.0, 0.0),
 		}
 	}

@@ -39,13 +39,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let width = term.width();
 	let height = term.height();
 
+	let width = 200;
+	let height = 200;
+
 	// Load texture image
 	let texture: Texture<Color> = Texture::load("assets/checker.png")?;
 
 	// Create a scene with just a single cube.
 	let mut scene = CubeScene {
 		camera: Camera::new(width as _, height as _),
-		cube: Cube::new(1.0, texture.into()),
+		cube: Cube::new(0.6, texture.into()),
+		//cube: Cube::new(0.6, Color::rgb(255, 0, 0).into()),
 	};
 
 	// Init the 3D canvas
@@ -62,13 +66,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	// Main application loop
 	term.attach();
+	let mut tick = 0;
+
+	let frame_average = 1000;
+	let mut frame_start = time::Instant::now();
 	loop {
+		let current_start = time::Instant::now();
+		tick += 1;
+		let new_frame = tick % frame_average == 0;
+
 		// Handle terminal events
 		while let Ok(event) = term.next_event() {
 			match event {
 				// Resize our 3D canvas to match the terminal size
 				Event::Resize(width, height) => {
-					canvas.resize(width, height);
+					//canvas.resize(width, height);
 				}
 				// Ignore any other events
 				_ => {}
@@ -85,16 +97,31 @@ fn main() -> Result<(), Box<dyn Error>> {
 				y as i32,
 				Cell {
 					fg: Color::transparent(),
-					bg: color,
+					bg: color.clone(),
 					symbol: ' ',
 				},
 			);
 		});
-		term.present();
+		term.present()?;
+
+		if new_frame {
+			let ms = frame_start.elapsed().as_micros() / frame_average;
+			if ms > 0 {
+				log::debug!("DRAW {:?}μs FPS: {}\n----", ms, 1000000 / ms);
+			}
+		}
 
 		// Draw at fixed framerate
 		let fps = 30;
-		thread::sleep(time::Duration::from_millis(1000 / fps));
+		let wait = time::Duration::from_millis(1000 / fps);
+		let elapsed = current_start.elapsed();
+		if elapsed < wait {
+			//thread::sleep(wait - elapsed);
+		}
+
+		if new_frame {
+			frame_start = time::Instant::now();
+		}
 	}
 
 	Ok(())

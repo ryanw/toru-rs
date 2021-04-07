@@ -37,7 +37,7 @@ impl MouseScene {
 	}
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// We're going to render to the terminal
 	let mut term = TerminalCanvas::new();
 	let width = term.width();
@@ -48,12 +48,14 @@ fn main() {
 	// Create a scene with just a single mesh.
 	let mut mesh = StaticMesh::load_obj("examples/assets/suzanne.obj").expect("Unable to open mesh file");
 	mesh.set_material(Color::green().into());
-	let mut scene = Arc::new(Mutex::new(MouseScene {
+	let mut camera = Camera::new(width as _, height as _);
+	camera.position = na::Point3::new(0.0, 0.0, -3.0);
+	let scene = Arc::new(Mutex::new(MouseScene {
 		mouse_down: false,
 		mouse_origin: (0, 0),
 		velocity: (0.0, 0.0),
 		transform,
-		camera: Camera::new(width as _, height as _),
+		camera,
 		mesh: Box::new(mesh),
 	}));
 
@@ -69,7 +71,8 @@ fn main() {
 	};
 
 	// Main application loop
-	term.attach();
+	term.attach()?;
+
 	loop {
 		// Handle terminal events
 		while let Ok(event) = term.next_event() {
@@ -123,7 +126,7 @@ fn main() {
 				},
 			);
 		});
-		term.present();
+		term.present()?;
 
 		// Draw at fixed framerate
 		let fps = 30;

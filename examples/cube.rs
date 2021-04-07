@@ -22,7 +22,7 @@ impl CubeScene {
 	}
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// We're going to render to the terminal
 	let mut term = TerminalCanvas::new();
 	let width = term.width();
@@ -33,6 +33,7 @@ fn main() {
 		camera: Camera::new(width as _, height as _),
 		cube: Cube::new(1.0, Color::rgb(0, 100, 255).into()),
 	};
+	scene.camera.position = na::Point3::new(0.0, 0.0, -3.0);
 
 	// Init the 3D canvas
 	let mut canvas = Canvas::new(width, height, move |ctx, dt| {
@@ -47,7 +48,7 @@ fn main() {
 	});
 
 	// Main application loop
-	term.attach();
+	term.attach()?;
 	loop {
 		// Handle terminal events
 		while let Ok(event) = term.next_event() {
@@ -71,7 +72,7 @@ fn main() {
 				y as i32,
 				Cell {
 					fg: Color::transparent(),
-					bg: color,
+					bg: *color,
 					symbol: ' ',
 				},
 			);

@@ -1,7 +1,8 @@
 use crate::camera::Camera;
 use crate::mesh::{Line, Mesh, Plane, Triangle};
-use crate::{Blendable, Buffer, Color, Material, Texture};
+use crate::{Blendable, Buffer, Color, FragmentShader, Material, Program, Varyings, Vertex};
 use nalgebra as na;
+use std::mem::{size_of, transmute};
 use std::time::Instant;
 
 const DRAW_NORMALS: bool = false;
@@ -11,13 +12,16 @@ fn map(value: f32, old_min: f32, old_max: f32, new_min: f32, new_max: f32) -> f3
 	((value - old_min) * (new_max - new_min)) / (old_max - old_min) + new_min
 }
 
-pub struct DrawContext<'a, P: Blendable> {
-	pub buffer: &'a mut Buffer<P>,
+pub struct DrawContext<'a, O: Blendable> {
+	pub buffer: &'a mut Buffer<O>,
 	pub depth: &'a mut Buffer<f32>,
 	pub transform: na::Matrix4<f32>,
 }
 
-impl<'a, P: Blendable> DrawContext<'a, P> {
+impl<'a, O> DrawContext<'a, O>
+where
+	O: Blendable,
+{
 	pub fn width(&self) -> u32 {
 		self.buffer.width()
 	}
@@ -27,7 +31,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 	}
 
 	pub fn clear(&mut self) {
-		self.buffer.fill(P::default());
+		self.buffer.fill(O::default());
 		self.depth.fill(std::f32::INFINITY);
 	}
 
@@ -73,7 +77,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		triangles
 	}
 
-	pub fn draw_line3(&mut self, line: &Line, color: &P) {
+	pub fn draw_line3(&mut self, line: &Line, color: &O) {
 		// TODO ADD DEPTH TESTING
 		let x0 = line.start.x;
 		let y0 = line.start.y;
@@ -115,14 +119,14 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		}
 	}
 
-	pub fn wire_line(&mut self, line: &Line, color: &P) {
+	pub fn wire_line(&mut self, line: &Line, color: &O) {
 		let p0 = self.view_to_screen(&line.start);
 		let p1 = self.view_to_screen(&line.end);
 
 		self.draw_line3(&Line::new(p0, p1), color);
 	}
 
-	pub fn wire_triangle(&mut self, tri: &Triangle, color: &P) {
+	pub fn wire_triangle(&mut self, tri: &Triangle, color: &O) {
 		let p0 = &tri.points[0];
 		let p1 = &tri.points[1];
 		let p2 = &tri.points[2];
@@ -132,7 +136,163 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		self.wire_line(&Line::new(p2.clone(), p0.clone()), color);
 	}
 
-	pub fn texture_triangle(&mut self, tri: &Triangle, material: &Material<P>, brightness: f32) {
+	pub fn rasterize_triangle<F>(&mut self, tri: &[F], shader: &mut Box<dyn FragmentShader<F, O>>)
+	where
+		F: Varyings,
+	{
+		// Sort by Y axis
+		let mut sorted_tri = [&tri[0], &tri[1], &tri[2]];
+		sorted_tri.sort_by(|l, r| r.position().y.partial_cmp(&l.position().y).unwrap());
+
+		let np0 = sorted_tri[0].position();
+		let np1 = sorted_tri[1].position();
+		let np2 = sorted_tri[2].position();
+
+		// If we already have an aligned edge, we only need 1 triangle
+		if np0.y == np1.y {
+			if np0.x >= np1.x {
+				sorted_tri = [sorted_tri[1], sorted_tri[0], sorted_tri[2]];
+			}
+			self.rasterize_flat_top_triangle(&sorted_tri, shader);
+		} else if np1.y == np2.y {
+			if np1.x >= np2.x {
+				sorted_tri = [sorted_tri[0], sorted_tri[2], sorted_tri[1]];
+			}
+			self.rasterize_flat_bottom_triangle(&sorted_tri, shader);
+		} else {
+			// No flat edge, so we need to split
+			let t = (np1.y - np0.y) / (np2.y - np0.y);
+			let mid = sorted_tri[0].lerp(sorted_tri[2], t);
+			let mut top_tri = [sorted_tri[0], &mid, sorted_tri[1]];
+			let mut bottom_tri = [sorted_tri[1], &mid, sorted_tri[2]];
+
+			if top_tri[1].position().x >= top_tri[2].position().x {
+				top_tri = [top_tri[0], top_tri[2], top_tri[1]];
+			}
+			if bottom_tri[0].position().x >= bottom_tri[1].position().x {
+				bottom_tri = [bottom_tri[1], bottom_tri[0], bottom_tri[2]];
+			}
+			self.rasterize_flat_top_triangle(&bottom_tri, shader);
+			self.rasterize_flat_bottom_triangle(&top_tri, shader);
+		}
+	}
+
+	fn rasterize_flat_bottom_triangle<F>(&mut self, tri: &[&F], shader: &mut Box<dyn FragmentShader<F, O>>)
+	where
+		F: Varyings,
+	{
+		let p0 = self.view_to_screen(&tri[0].position());
+		let p1 = self.view_to_screen(&tri[1].position());
+		let p2 = self.view_to_screen(&tri[2].position());
+
+		assert_eq!(true, p1.x <= p2.x);
+
+		// Number of rows to draw
+		let dy = p1.y - p0.y;
+
+		// `t` step per row
+		let t_step = 1.0 / dy;
+
+		let slope0 = (p1.x - p0.x) / dy;
+		let slope1 = (p2.x - p0.x) / dy;
+
+		let mut x0 = p0.x;
+		let mut x1 = p0.x;
+
+		let lerp_step0 = tri[0].lerp_step(tri[1], t_step);
+		let lerp_step1 = tri[0].lerp_step(tri[2], t_step);
+		let mut l = tri[0].clone();
+		let mut r = tri[0].clone();
+		for y in (p0.y as i32)..=(p1.y as i32) {
+			if x0 != x1 {
+				l.add_step(&lerp_step0);
+				r.add_step(&lerp_step1);
+				let xt_step = 1.0 / (x1 - x0);
+
+				let p_step = l.lerp_step(&r, xt_step);
+				let mut p = l.clone();
+
+				for x in (x0 as i32)..=(x1 as i32) {
+					p.add_step(&p_step);
+					let z = p.position().z;
+
+					// Depth test
+					if let Some(d) = self.depth.get_mut(x, y) {
+						if *d < z {
+							continue;
+						}
+						*d = z;
+					}
+					if let Some(dst) = self.buffer.get_mut(x, y) {
+						let color = shader.main(&p);
+						*dst = color;
+					}
+				}
+			}
+
+			x0 += slope0;
+			x1 += slope1;
+		}
+	}
+
+	fn rasterize_flat_top_triangle<F>(&mut self, tri: &[&F], shader: &mut Box<dyn FragmentShader<F, O>>)
+	where
+		F: Varyings,
+	{
+		let p0 = self.view_to_screen(&tri[0].position());
+		let p1 = self.view_to_screen(&tri[1].position());
+		let p2 = self.view_to_screen(&tri[2].position());
+
+		assert_eq!(true, p0.x <= p1.x);
+
+		// Number of rows to draw
+		let dy = p2.y - p0.y;
+
+		// `t` step per row
+		let t_step = 1.0 / dy;
+
+		let slope0 = (p2.x - p0.x) / dy;
+		let slope1 = (p2.x - p1.x) / dy;
+
+		let mut x0 = p2.x;
+		let mut x1 = p2.x;
+
+		let lerp_step0 = tri[2].lerp_step(tri[0], t_step);
+		let lerp_step1 = tri[2].lerp_step(tri[1], t_step);
+		let mut l = tri[2].clone();
+		let mut r = tri[2].clone();
+		for y in ((p0.y as i32)..=(p2.y as i32)).rev() {
+			if x0 != x1 {
+				l.add_step(&lerp_step0);
+				r.add_step(&lerp_step1);
+
+				let xt_step = 1.0 / (x1 - x0);
+				let p_step = l.lerp_step(&r, xt_step);
+				let mut p = l.clone();
+				for x in (x0 as i32)..=(x1 as i32) {
+					p.add_step(&p_step);
+					let z = p.position().z;
+
+					// Depth test
+					if let Some(d) = self.depth.get_mut(x, y) {
+						if *d < z {
+							continue;
+						}
+						*d = z;
+					}
+					if let Some(dst) = self.buffer.get_mut(x, y) {
+						let color = shader.main(&p);
+						*dst = color;
+					}
+				}
+			}
+
+			x0 -= slope0;
+			x1 -= slope1;
+		}
+	}
+
+	pub fn texture_triangle(&mut self, tri: &Triangle, material: &Material<O>, brightness: f32) {
 		match material {
 			Material::Color(color) => {
 				let mut color = color.clone();
@@ -201,7 +361,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		}
 	}
 
-	pub fn fill_triangle(&mut self, tri: &Triangle, color: &P) {
+	pub fn fill_triangle(&mut self, tri: &Triangle, color: &O) {
 		for tri in self.clip_triangle_to_edges(tri) {
 			let p0 = self.view_to_screen(&tri.points[0]);
 			let p1 = self.view_to_screen(&tri.points[1]);
@@ -237,7 +397,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		}
 	}
 
-	fn texture_flat_bottom_triangle(&mut self, tri: &Triangle, material: &Material<P>, brightness: f32) {
+	fn texture_flat_bottom_triangle(&mut self, tri: &Triangle, material: &Material<O>, brightness: f32) {
 		match material {
 			Material::Color(color) => {
 				self.fill_flat_bottom_triangle(tri, color);
@@ -344,7 +504,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		}
 	}
 
-	fn texture_flat_top_triangle(&mut self, tri: &Triangle, material: &Material<P>, brightness: f32) {
+	fn texture_flat_top_triangle(&mut self, tri: &Triangle, material: &Material<O>, brightness: f32) {
 		match material {
 			Material::Color(color) => {
 				self.fill_flat_top_triangle(tri, color);
@@ -454,7 +614,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		}
 	}
 
-	fn fill_flat_bottom_triangle(&mut self, tri: &Triangle, color: &P) {
+	fn fill_flat_bottom_triangle(&mut self, tri: &Triangle, color: &O) {
 		let [p0, p1, p2] = tri.points;
 
 		let dy = p1.y - p0.y;
@@ -480,7 +640,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		}
 	}
 
-	fn fill_flat_top_triangle(&mut self, tri: &Triangle, color: &P) {
+	fn fill_flat_top_triangle(&mut self, tri: &Triangle, color: &O) {
 		let [p0, p1, p2] = tri.points;
 
 		let dy = p2.y - p0.y;
@@ -506,7 +666,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		}
 	}
 
-	pub fn draw_normalized_line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: P) {
+	pub fn draw_normalized_line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: O) {
 		let (w, h) = (self.buffer.width() as f32, self.buffer.height() as f32);
 		self.draw_line(
 			(w / 2.0 + w * x0) as i32,
@@ -517,7 +677,40 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		);
 	}
 
-	pub fn draw_mesh(&mut self, mesh: &dyn Mesh<P>, camera: &Camera) {
+	pub fn draw_triangles<V, F, I>(&'a mut self, program: &mut Program<V, F, O>, vertices: I)
+	where
+		V: Vertex + std::fmt::Debug + 'a,
+		F: Varyings + std::fmt::Debug,
+		I: Iterator<Item = &'a V>,
+	{
+		let vertex_shader = &mut program.vertex_shader;
+		let fragment_shader = &mut program.fragment_shader;
+		vertex_shader.setup();
+
+		let mut tri: Vec<F> = Vec::with_capacity(3);
+		for vertex in vertices {
+			tri.push(vertex_shader.main(vertex));
+			if tri.len() < 3 {
+				continue;
+			}
+
+			let p0 = tri[0].position();
+			let p1 = tri[1].position();
+			let p2 = tri[2].position();
+
+			// Backface cull
+			let winding = (p1 - p0).cross(&(p2 - p0));
+			if winding.z > 0.0 {
+				tri.clear();
+				continue;
+			}
+
+			self.rasterize_triangle(&tri, fragment_shader);
+			tri.clear();
+		}
+	}
+
+	pub fn draw_mesh(&mut self, mesh: &dyn Mesh<O>, camera: &Camera) {
 		if mesh.material().is_none() {
 			log::warn!("Mesh has no material");
 			return;
@@ -553,7 +746,7 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 
 				self.texture_triangle(&tri, &material, brightness);
 
-				// FIXME - swap Color for P
+				// FIXME - swap Color for O
 				/*
 				// Draw debug normal
 				if DRAW_NORMALS {
@@ -580,11 +773,11 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 		}
 	}
 
-	pub fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: P) {
+	pub fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: O) {
 		self.buffer.draw_line(x0, y0, x1, y1, color);
 	}
 
-	pub fn draw_hline(&mut self, x0: i32, z0: f32, x1: i32, z1: f32, y: i32, color: P) {
+	pub fn draw_hline(&mut self, x0: i32, z0: f32, x1: i32, z1: f32, y: i32, color: O) {
 		if x0 == x1 {
 			return;
 		}
@@ -609,10 +802,10 @@ impl<'a, P: Blendable> DrawContext<'a, P> {
 	}
 }
 
-pub struct Canvas<P: Blendable = Color> {
+pub struct Canvas<O: Blendable = Color> {
 	last_tick_at: Instant,
-	callback: Box<dyn FnMut(&mut DrawContext<P>, f32)>,
-	buffer: Buffer<P>,
+	callback: Box<dyn FnMut(&mut DrawContext<O>, f32)>,
+	buffer: Buffer<O>,
 	depth: Buffer<f32>,
 	transform_stack: Vec<na::Matrix4<f32>>,
 	transform: na::Matrix4<f32>,
@@ -624,8 +817,8 @@ impl Canvas<Color> {
 	}
 }
 
-impl<P: Blendable> Canvas<P> {
-	pub fn new(width: u32, height: u32, callback: impl FnMut(&mut DrawContext<P>, f32) + 'static) -> Self {
+impl<O: Blendable> Canvas<O> {
+	pub fn new(width: u32, height: u32, callback: impl FnMut(&mut DrawContext<O>, f32) + 'static) -> Self {
 		Self {
 			last_tick_at: Instant::now(),
 			callback: Box::new(callback),
@@ -636,12 +829,20 @@ impl<P: Blendable> Canvas<P> {
 		}
 	}
 
-	pub fn draw_pixels(&mut self, mut callback: impl FnMut(u32, u32, P)) {
+	pub fn width(&self) -> u32 {
+		self.buffer.width()
+	}
+
+	pub fn height(&self) -> u32 {
+		self.buffer.height()
+	}
+
+	pub fn draw_pixels(&self, mut callback: impl FnMut(u32, u32, &O)) {
 		let (w, h) = self.buffer.size();
 		for y in 0..h {
 			for x in 0..w {
-				if let Some(pixel) = self.buffer.get_mut(x as i32, y as i32) {
-					callback(x, y, *pixel);
+				if let Some(pixel) = self.buffer.get(x as i32, y as i32) {
+					callback(x, y, pixel);
 				}
 			}
 		}
@@ -658,11 +859,19 @@ impl<P: Blendable> Canvas<P> {
 		(self.callback)(&mut context, dt.as_secs_f32());
 	}
 
-	pub fn buffer(&self) -> &Buffer<P> {
+	pub fn context<'a>(&'a mut self) -> DrawContext<'a, O> {
+		DrawContext {
+			buffer: &mut self.buffer,
+			depth: &mut self.depth,
+			transform: self.transform,
+		}
+	}
+
+	pub fn buffer(&self) -> &Buffer<O> {
 		&self.buffer
 	}
 
-	pub fn buffer_mut(&mut self) -> &mut Buffer<P> {
+	pub fn buffer_mut(&mut self) -> &mut Buffer<O> {
 		&mut self.buffer
 	}
 
@@ -682,7 +891,7 @@ impl<P: Blendable> Canvas<P> {
 		self.depth.resize(w, h);
 	}
 
-	pub fn fill(&mut self, color: P) {
+	pub fn fill(&mut self, color: O) {
 		self.buffer.fill(color);
 		self.depth.fill(std::f32::INFINITY);
 	}

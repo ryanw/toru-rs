@@ -23,16 +23,18 @@ impl TerrainScene {
 	}
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 	// We're going to render to the terminal
 	let mut term = TerminalCanvas::new();
 	let width = term.width();
 	let height = term.height();
 
 	// Create a scene with just a single terrain.
+	let mut camera = Camera::new(width as _, height as _);
+	camera.position = na::Point3::new(0.0, 0.0, -4.0);
 	let mut scene = TerrainScene {
 		transform: na::Matrix4::new_translation(&na::Vector3::new(0.0, 5.0, 16.0)),
-		camera: Camera::new(width as _, height as _),
+		camera,
 		terrain: Terrain::new(32, 32),
 	};
 
@@ -48,7 +50,8 @@ fn main() {
 	});
 
 	// Main application loop
-	term.attach();
+	term.attach()?;
+
 	loop {
 		// Handle terminal events
 		while let Ok(event) = term.next_event() {
@@ -77,7 +80,7 @@ fn main() {
 				},
 			);
 		});
-		term.present();
+		term.present()?;
 
 		// Draw at fixed framerate
 		let fps = 30;
