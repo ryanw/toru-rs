@@ -21,7 +21,7 @@ where
 
 		let mut buffer: Buffer<P> = Buffer::new(width, height);
 		for y in 0..height {
-			for x in 0..height {
+			for x in 0..width {
 				if let Some(p) = buffer.get_mut(x as i32, y as i32) {
 					*p = img.get_pixel(x, y).0.into();
 				}
