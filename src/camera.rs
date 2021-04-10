@@ -7,6 +7,7 @@ pub struct Camera {
 	pub projection: na::Perspective3<f32>,
 	pub position: na::Point3<f32>,
 	pub rotation: na::Vector3<f32>,
+	pub fov: f32,
 }
 
 impl Default for Camera {
@@ -14,9 +15,10 @@ impl Default for Camera {
 		Self {
 			width: Default::default(),
 			height: Default::default(),
-			projection: na::Perspective3::new(1.0, 3.14 / 4.0, 0.1, 1000.0),
+			projection: na::Perspective3::new(1.0, 45.0f32.to_radians(), 0.1, 1000.0),
 			position: na::Point3::new(0.0, 0.0, -1.5),
 			rotation: na::Vector3::new(0.0, 0.0, 0.0),
+			fov: 45.0,
 		}
 	}
 }
@@ -26,7 +28,7 @@ impl Camera {
 		Self {
 			width,
 			height,
-			projection: na::Perspective3::new(width / height, 3.14 / 2.0, 0.1, 1000.0),
+			projection: na::Perspective3::new(width / height, 45.0f32.to_radians(), 0.1, 1000.0),
 			..Default::default()
 		}
 	}
@@ -64,7 +66,7 @@ impl Camera {
 	pub fn resize(&mut self, width: f32, height: f32) {
 		self.width = width;
 		self.height = height;
-		self.projection = na::Perspective3::new(width / height, 3.14 / 2.0, 0.1, 1000.0);
+		self.projection = na::Perspective3::new(width / height, self.fov.to_radians(), 0.1, 1000.0);
 	}
 
 	pub fn size(&self) -> (f32, f32) {
