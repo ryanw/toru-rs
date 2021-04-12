@@ -6,6 +6,10 @@ pub trait Blendable: Default + Copy + PartialEq {
 		self.clone()
 	}
 
+	fn red() -> Self;
+	fn green() -> Self;
+	fn blue() -> Self;
+
 	fn set_brightness(&mut self, _brightness: f32) {}
 }
 
@@ -20,6 +24,18 @@ impl Blendable for f32 {
 
 	fn set_brightness(&mut self, brightness: f32) {
 		*self *= brightness;
+	}
+
+	fn red() -> Self {
+		0.25
+	}
+
+	fn green() -> Self {
+		0.5
+	}
+
+	fn blue() -> Self {
+		0.75
 	}
 }
 
@@ -45,6 +61,18 @@ impl Blendable for mutunga::Color {
 		self.r = (self.r as f32 * brightness) as u8;
 		self.g = (self.g as f32 * brightness) as u8;
 		self.b = (self.b as f32 * brightness) as u8;
+	}
+
+	fn red() -> Self {
+		mutunga::Color::rgb(255, 0, 0)
+	}
+
+	fn green() -> Self {
+		mutunga::Color::rgb(0, 255, 0)
+	}
+
+	fn blue() -> Self {
+		mutunga::Color::rgb(0, 0, 255)
 	}
 }
 

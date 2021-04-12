@@ -57,6 +57,9 @@ impl<'a, P: Blendable> Iterator for CubeIterator<'a, P> {
 	type Item = Triangle;
 
 	fn next(&mut self) -> Option<Self::Item> {
+		if self.current > 0 {
+			//return None;
+		}
 		if self.current > 11 {
 			return None;
 		}

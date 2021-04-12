@@ -6,6 +6,7 @@ pub struct Triangle {
 	pub points: [na::Point3<f32>; 3],
 	pub normal: na::Vector3<f32>,
 	// Z value is for perspective projection
+	// FIXME remove Z, it's done in the shader now
 	pub uvs: [na::Vector3<f32>; 3],
 }
 
@@ -209,5 +210,11 @@ impl Plane {
 
 	pub fn distance_to_point(&self, p: &na::Point3<f32>) -> f32 {
 		self.normal.x * p.x + self.normal.y * p.y + self.normal.z * p.z - self.dot()
+	}
+
+	pub fn distance_to_vector(&self, p: &na::Vector4<f32>) -> f32 {
+		let w = p.w;
+		let dot = self.normal.dot(&(self.point.coords * w));
+		self.normal.x * p.x + self.normal.y * p.y + self.normal.z * p.z - dot
 	}
 }

@@ -21,7 +21,7 @@ mod shaders {
 
 	#[derive(Debug, Clone)]
 	pub struct SimpleVaryings {
-		pub position: na::Point3<f32>,
+		pub position: na::Vector4<f32>,
 		pub brightness: f32,
 		pub uv: na::Vector3<f32>,
 		pub color: Color,
@@ -62,7 +62,7 @@ mod shaders {
 			}
 
 			SimpleVaryings {
-				position: na::Point3::from_homogeneous(position).unwrap(),
+				position,
 				brightness,
 				uv,
 				color,
@@ -80,18 +80,22 @@ mod shaders {
 	}
 
 	impl Varyings for SimpleVaryings {
-		fn position(&self) -> &na::Point3<f32> {
+		fn position(&self) -> &na::Vector4<f32> {
 			&self.position
 		}
 
+		fn position_mut(&mut self) -> &mut na::Vector4<f32> {
+			&mut self.position
+		}
+
 		fn lerp_step(&self, rhs: &Self, t: f32) -> Self {
-			let position = self.position.coords.lerp(&rhs.position.coords, t);
+			let position = self.position.lerp(&rhs.position, t);
 			let brightness = self.brightness + t * (rhs.brightness - self.brightness);
 			let uv = self.uv.lerp(&rhs.uv, t);
 			let color = self.color.clone(); // TODO
 
 			Self {
-				position: na::Point3::from(position - self.position.coords),
+				position: position - self.position,
 				brightness: brightness - self.brightness,
 				uv: uv - self.uv,
 				color,
@@ -99,13 +103,13 @@ mod shaders {
 		}
 
 		fn add_step(&mut self, step: &Self) {
-			self.position.coords += step.position.coords;
+			self.position += step.position;
 			self.brightness += step.brightness;
 			self.uv += step.uv;
 		}
 
 		fn lerp(&self, rhs: &Self, t: f32) -> Self {
-			let position = na::Point3::from(self.position.coords.lerp(&rhs.position.coords, t));
+			let position = self.position.lerp(&rhs.position, t);
 			let brightness = self.brightness + t * (rhs.brightness - self.brightness);
 			let uv = self.uv.lerp(&rhs.uv, t);
 			let color = self.color.clone(); // TODO
@@ -168,8 +172,7 @@ impl CubeScene {
 			}
 		}
 
-		let rot = na::Matrix4::from_euler_angles(0.321 * PI * dt, 0.0, -0.234 * PI * dt);
-		*self.cube.transform_mut() *= rot;
+		*self.cube.transform_mut() *= na::Matrix4::from_euler_angles(0.321 * PI * dt, 0.0, -0.234 * PI * dt);
 	}
 
 	pub fn draw(&mut self, canvas: &mut Canvas<Color>) {
@@ -203,6 +206,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let mut term = TerminalCanvas::new();
 	let width = term.width();
 	let height = term.height();
+	let width = 200;
+	let height = width;
 
 	// Load texture image
 	let texture: Texture<Color> = Texture::load("assets/checker.png")?;
@@ -223,7 +228,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		program: Program::new(vertex_shader, fragment_shader),
 		vertices: vec![],
 		camera: Camera::new(width as _, height as _),
-		cube: Cube::new(0.6, Color::rgb(255, 0, 0).into()),
+		cube: Cube::new(0.3, Color::rgb(255, 0, 0).into()),
 	};
 
 	// Init the 3D canvas
@@ -231,16 +236,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	// Main application loop
 	term.attach()?;
+	let mut tick = 0;
 
+	let frame_average = 1000;
+	let mut frame_start = time::Instant::now();
 	loop {
 		let current_start = time::Instant::now();
+		tick += 1;
+		let new_frame = tick % frame_average == 0;
 
 		// Handle terminal events
 		while let Ok(event) = term.next_event() {
 			match event {
 				// Resize our 3D canvas to match the terminal size
 				Event::Resize(width, height) => {
-					canvas.resize(width, height);
+					//canvas.resize(width, height);
 				}
 				// Ignore any other events
 				_ => {}
@@ -263,12 +273,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 		});
 		term.present()?;
 
+		if new_frame {
+			let ms = frame_start.elapsed().as_micros() / frame_average;
+			if ms > 0 {
+				log::debug!("DRAW {:?}μs FPS: {}\n----", ms, 1000000 / ms);
+			}
+		}
+
 		// Draw at fixed framerate
 		let fps = 30;
 		let wait = time::Duration::from_millis(1000 / fps);
 		let elapsed = current_start.elapsed();
 		if elapsed < wait {
-			thread::sleep(wait - elapsed);
+			//thread::sleep(wait - elapsed);
+		}
+
+		if new_frame {
+			frame_start = time::Instant::now();
 		}
 	}
 

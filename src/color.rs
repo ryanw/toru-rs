@@ -130,6 +130,18 @@ impl Blendable for Color {
 		self.g = (self.g as f32 * brightness) as u8;
 		self.b = (self.b as f32 * brightness) as u8;
 	}
+
+	fn red() -> Self {
+		Color::rgb(255, 0, 0)
+	}
+
+	fn green() -> Self {
+		Color::rgb(0, 255, 0)
+	}
+
+	fn blue() -> Self {
+		Color::rgb(0, 0, 255)
+	}
 }
 
 #[cfg(feature = "mutunga")]

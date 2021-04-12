@@ -7,6 +7,7 @@ mod cube;
 pub use cube::*;
 mod terrain;
 use crate::{Blendable, Color, Material, Texture};
+use std::f32::consts::PI;
 use std::ops::Deref;
 pub use terrain::*;
 
@@ -261,16 +262,30 @@ impl<'a, P: Blendable> Iterator for StaticMeshIterator<'a, P> {
 		}
 
 		let tri = self.mesh.triangles[self.current];
-		let mut tri = Triangle::new(
-			self.mesh.vertices[tri.0].clone(),
-			self.mesh.vertices[tri.1].clone(),
-			self.mesh.vertices[tri.2].clone(),
-		);
-		let d = ((tri.points[0].coords + tri.points[1].coords + tri.points[2].coords) / 3.0)
-			.norm()
-			.abs() - 9.0;
+		let p0 = self.mesh.vertices[tri.0].clone();
+		let p1 = self.mesh.vertices[tri.1].clone();
+		let p2 = self.mesh.vertices[tri.2].clone();
+
+		let uv0 = lon_lat_to_uv(&to_lon_lat(&p0));
+		let uv1 = lon_lat_to_uv(&to_lon_lat(&p1));
+		let uv2 = lon_lat_to_uv(&to_lon_lat(&p2));
+
+		let tri = Triangle::new(p0, p1, p2).uv(uv0, uv1, uv2);
 
 		self.current += 1;
 		Some(tri)
 	}
+}
+
+fn to_lon_lat(point: &na::Point3<f32>) -> na::Vector2<f32> {
+	let v = point.coords.normalize();
+	let mut lat = v.y.acos() - PI / 2.0;
+	let mut lon = v.z.atan2(v.x);
+	return na::Vector2::new(lon, lat);
+}
+
+fn lon_lat_to_uv(ll: &na::Vector2<f32>) -> na::Point2<f32> {
+	let x = (ll.x.to_degrees() + 180.0) / 360.0;
+	let y = 1.0 - (ll.y.to_degrees() + 90.0) / 180.0;
+	return na::Point2::new(x, y);
 }

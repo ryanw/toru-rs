@@ -3,7 +3,15 @@ use nalgebra as na;
 
 pub trait Vertex {}
 pub trait Varyings: Clone + std::fmt::Debug {
-	fn position(&self) -> &na::Point3<f32>;
+	fn position(&self) -> &na::Vector4<f32>;
+	fn position_mut(&mut self) -> &mut na::Vector4<f32>;
+	fn divide_perspective(&mut self) {
+		let w = self.position().w;
+		self.position_mut().unscale_mut(w);
+	}
+	fn proj_position(&self) -> na::Point3<f32> {
+		na::Point3::from_homogeneous(*self.position()).unwrap()
+	}
 	fn lerp(&self, rhs: &Self, t: f32) -> Self;
 	fn lerp_step(&self, rhs: &Self, step: f32) -> Self;
 	fn add_step(&mut self, step: &Self);

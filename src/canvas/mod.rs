@@ -21,12 +21,9 @@ impl<F: Varyings> ClipToPlain<F> for [F; 3] {
 		let mut inside: Vec<&F> = Vec::with_capacity(3);
 		let mut outside: Vec<&F> = Vec::with_capacity(3);
 
-		let pos0 = self[0].position();
-		let pos1 = self[1].position();
-		let pos2 = self[2].position();
-		let d0 = plane.distance_to_point(&pos0);
-		let d1 = plane.distance_to_point(&pos1);
-		let d2 = plane.distance_to_point(&pos2);
+		let d0 = plane.distance_to_vector(&self[0].position());
+		let d1 = plane.distance_to_vector(&self[1].position());
+		let d2 = plane.distance_to_vector(&self[2].position());
 
 		if d0 >= 0.0 {
 			inside.push(&self[0]);
@@ -59,13 +56,15 @@ impl<F: Varyings> ClipToPlain<F> for [F; 3] {
 		if inside.len() == 1 {
 			// Create single new triangle with base chopped off
 			let plane_dot = plane.dot();
-			let start_dot = inside[0].position().coords.dot(&plane.normal);
+			let plane_normal = plane.normal;
 
-			let end_dot = outside[0].position().coords.dot(&plane.normal);
+			let start_dot = inside[0].proj_position().coords.dot(&plane_normal);
+
+			let end_dot = outside[0].proj_position().coords.dot(&plane_normal);
 			let t0 = (plane_dot - start_dot) / (end_dot - start_dot);
 			let lerp0 = inside[0].lerp(&outside[0], t0);
 
-			let end_dot = outside[1].position().coords.dot(&plane.normal);
+			let end_dot = outside[1].proj_position().coords.dot(&plane_normal);
 			let t1 = (plane_dot - start_dot) / (end_dot - start_dot);
 			let lerp1 = inside[0].lerp(&outside[1], t1);
 
@@ -76,14 +75,15 @@ impl<F: Varyings> ClipToPlain<F> for [F; 3] {
 		if outside.len() == 1 {
 			// Create a quad from the triangle with the tip chopped off
 			let plane_dot = plane.dot();
+			let plane_normal = plane.normal;
 
-			let start_dot = inside[0].position().coords.dot(&plane.normal);
-			let end_dot = outside[0].position().coords.dot(&plane.normal);
+			let start_dot = inside[0].proj_position().coords.dot(&plane_normal);
+			let end_dot = outside[0].proj_position().coords.dot(&plane_normal);
 			let t0 = (plane_dot - start_dot) / (end_dot - start_dot);
 			let lerp0 = inside[0].lerp(&outside[0], t0);
 			let new_tri0 = [inside[0].clone(), inside[1].clone(), lerp0];
 
-			let start_dot = inside[1].position().coords.dot(&plane.normal);
+			let start_dot = inside[1].proj_position().coords.dot(&plane_normal);
 			let t1 = (plane_dot - start_dot) / (end_dot - start_dot);
 			let lerp1 = inside[1].lerp(&outside[0], t1);
 			let new_tri1 = [new_tri0[1].clone(), new_tri0[2].clone(), lerp1];
@@ -136,7 +136,7 @@ where
 		p
 	}
 
-	fn clip_triangle_to_edges(&self, tri: &Triangle) -> Vec<Triangle> {
+	fn clip_triangle_to_edges_deprecated(&self, tri: &Triangle) -> Vec<Triangle> {
 		let planes = [
 			// Left
 			Plane::new(na::Point3::new(-1.0, 0.0, 0.0), na::Vector3::new(1.0, 0.0, 0.0)),
@@ -146,6 +146,8 @@ where
 			Plane::new(na::Point3::new(0.0, -1.0, 0.0), na::Vector3::new(0.0, 1.0, 0.0)),
 			// Top
 			Plane::new(na::Point3::new(0.0, 1.0, 0.0), na::Vector3::new(0.0, -1.0, 0.0)),
+			// Near
+			Plane::new(na::Point3::new(0.0, 0.0, -1.0), na::Vector3::new(0.0, 0.0, 1.0)),
 		];
 
 		let mut triangles = Vec::with_capacity(8);
@@ -220,26 +222,22 @@ where
 		self.wire_line(&Line::new(p2.clone(), p0.clone()), color);
 	}
 
-	fn clip_triangle<F>(&self, tri: &[&F; 3]) -> Vec<[F; 3]>
+	fn clip_triangle_to_plane<F>(&self, tri: &[&F; 3], plane: &Plane) -> Vec<[F; 3]>
 	where
 		F: Varyings,
 	{
-		let planes = [
-			// Left
-			Plane::new(na::Point3::new(-1.0, 0.0, 0.0), na::Vector3::new(1.0, 0.0, 0.0)),
-			// Right
-			Plane::new(na::Point3::new(1.0, 0.0, 0.0), na::Vector3::new(-1.0, 0.0, 0.0)),
-			// Bottom
-			Plane::new(na::Point3::new(0.0, -1.0, 0.0), na::Vector3::new(0.0, 1.0, 0.0)),
-			// Top
-			Plane::new(na::Point3::new(0.0, 1.0, 0.0), na::Vector3::new(0.0, -1.0, 0.0)),
-		];
+		self.clip_triangle_to_planes(tri, &[plane])
+	}
 
+	fn clip_triangle_to_planes<F>(&self, tri: &[&F; 3], planes: &[&Plane]) -> Vec<[F; 3]>
+	where
+		F: Varyings,
+	{
 		let mut triangles: Vec<[F; 3]> = Vec::with_capacity(8);
 		let mut next_triangles: Vec<[F; 3]> = Vec::with_capacity(8);
 		let tri = [tri[0].clone(), tri[1].clone(), tri[2].clone()];
 		triangles.push(tri);
-		for plane in &planes {
+		for plane in planes {
 			for tri in triangles.drain(..) {
 				next_triangles.append(&mut tri.clip_to_plane(plane));
 			}
@@ -249,11 +247,81 @@ where
 		triangles
 	}
 
+	fn clip_polygon_to_edge<F>(&self, tri: &[F], edge: usize, factor: f32) -> Vec<F>
+	where
+		F: Varyings,
+	{
+		let mut verts = Vec::with_capacity(12);
+
+		let mut prev_v = &tri[tri.len() - 1];
+		let mut prev_val = prev_v.position()[edge] * factor;
+		let mut prev_inside = prev_val <= prev_v.position().w;
+
+		for v in tri {
+			let val = v.position()[edge] * factor;
+			let inside = val <= v.position().w;
+
+			if inside ^ prev_inside {
+				let t = (prev_v.position().w - prev_val) / ((prev_v.position().w - prev_val) - (v.position().w - val));
+				verts.push(prev_v.lerp(v, t));
+			}
+
+			if inside {
+				verts.push((*v).clone());
+			}
+
+			prev_v = v;
+			prev_val = val;
+			prev_inside = inside;
+		}
+
+		verts
+	}
+
+	fn clip_triangle_to_edges<F>(&self, tri: &[F; 3]) -> Vec<[F; 3]>
+	where
+		F: Varyings,
+	{
+		let mut poly: &[F] = tri;
+		let mut verts;
+		for axis in 0..2 {
+			// Positive edge
+			verts = self.clip_polygon_to_edge(poly, axis, 1.0);
+			if verts.is_empty() {
+				return vec![];
+			}
+			poly = &verts;
+
+			// Negative edge
+			verts = self.clip_polygon_to_edge(poly, axis, -1.0);
+			if verts.is_empty() {
+				return vec![];
+			}
+			poly = &verts;
+		}
+
+		if poly.len() <= 2 {
+			return vec![];
+		}
+
+		// Triangulate our polygons
+		let mut tris: Vec<[F; 3]> = Vec::with_capacity(12);
+		for i in 1..poly.len() - 1 {
+			tris.push([poly[0].clone(), poly[i].clone(), poly[i + 1].clone()]);
+		}
+
+		tris
+	}
+
 	pub fn rasterize_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut Box<dyn FragmentShader<F, O>>)
 	where
 		F: Varyings,
 	{
-		for tri in self.clip_triangle(tri) {
+		for mut tri in self.clip_triangle_to_edges(&[tri[0].clone(), tri[1].clone(), tri[2].clone()]) {
+			tri[0].divide_perspective();
+			tri[1].divide_perspective();
+			tri[2].divide_perspective();
+
 			// Sort by Y axis
 			let mut sorted_tri = [&tri[0], &tri[1], &tri[2]];
 			sorted_tri.sort_by(|l, r| r.position().y.partial_cmp(&l.position().y).unwrap());
@@ -280,25 +348,62 @@ where
 				let mut top_tri = [sorted_tri[0], &mid, sorted_tri[1]];
 				let mut bottom_tri = [sorted_tri[1], &mid, sorted_tri[2]];
 
-				if top_tri[1].position().x >= top_tri[2].position().x {
+				if top_tri[1].proj_position().x >= top_tri[2].proj_position().x {
 					top_tri = [top_tri[0], top_tri[2], top_tri[1]];
 				}
-				if bottom_tri[0].position().x >= bottom_tri[1].position().x {
+				if bottom_tri[0].proj_position().x >= bottom_tri[1].proj_position().x {
 					bottom_tri = [bottom_tri[1], bottom_tri[0], bottom_tri[2]];
 				}
 				self.rasterize_flat_top_triangle(&bottom_tri, shader);
 				self.rasterize_flat_bottom_triangle(&top_tri, shader);
 			}
+
+			// Wireframe on top of triangle
+			if DRAW_WIRES {
+				let color = O::red();
+				self.wire_line(
+					&Line::new(sorted_tri[0].proj_position(), sorted_tri[1].proj_position()),
+					&color,
+				);
+				self.wire_line(
+					&Line::new(sorted_tri[1].proj_position(), sorted_tri[2].proj_position()),
+					&color,
+				);
+				self.wire_line(
+					&Line::new(sorted_tri[2].proj_position(), sorted_tri[0].proj_position()),
+					&color,
+				);
+			}
+
+			if DRAW_NORMALS {
+				/*
+				let view_normal = view.transform_vector(&world_normal).normalize();
+				let _screen_normal = proj.transform_vector(&view_normal).normalize();
+
+				let color = O::green();
+				let p0 = na::Point3::from_coordinates(
+					(world_tri.points[0].coords + world_tri.points[1].coords + world_tri.points[2].coords) / 3.0,
+				);
+				let p1 = na::Matrix4::new_translation(&(world_normal * -0.3)).transform_point(&p0);
+				let line = Line::new((proj * view).transform_point(&p0), (proj * view).transform_point(&p1));
+				if line.length().abs() < 1.0 {
+					self.wire_line(&line, &color);
+				}
+				*/
+			}
 		}
 	}
 
-	fn rasterize_flat_bottom_triangle<F>(&mut self, tri: &[&F], shader: &mut Box<dyn FragmentShader<F, O>>)
+	fn rasterize_flat_bottom_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut Box<dyn FragmentShader<F, O>>)
 	where
 		F: Varyings,
 	{
-		let p0 = self.view_to_screen(&tri[0].position());
-		let p1 = self.view_to_screen(&tri[1].position());
-		let p2 = self.view_to_screen(&tri[2].position());
+		let vp0 = tri[0].proj_position();
+		let vp1 = tri[1].proj_position();
+		let vp2 = tri[2].proj_position();
+		let p0 = self.view_to_screen(&vp0);
+		let p1 = self.view_to_screen(&vp1);
+		let p2 = self.view_to_screen(&vp2);
 
 		assert_eq!(true, p1.x <= p2.x);
 
@@ -348,15 +453,27 @@ where
 			x0 += slope0;
 			x1 += slope1;
 		}
+
+		if DRAW_WIRES {
+			/*
+			let color = O::green();
+			self.wire_line(&Line::new(vp0, vp1), &color);
+			self.wire_line(&Line::new(vp1, vp2), &color);
+			self.wire_line(&Line::new(vp2, vp0), &color);
+			*/
+		}
 	}
 
-	fn rasterize_flat_top_triangle<F>(&mut self, tri: &[&F], shader: &mut Box<dyn FragmentShader<F, O>>)
+	fn rasterize_flat_top_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut Box<dyn FragmentShader<F, O>>)
 	where
 		F: Varyings,
 	{
-		let p0 = self.view_to_screen(&tri[0].position());
-		let p1 = self.view_to_screen(&tri[1].position());
-		let p2 = self.view_to_screen(&tri[2].position());
+		let vp0 = tri[0].proj_position();
+		let vp1 = tri[1].proj_position();
+		let vp2 = tri[2].proj_position();
+		let p0 = self.view_to_screen(&vp0);
+		let p1 = self.view_to_screen(&vp1);
+		let p2 = self.view_to_screen(&vp2);
 
 		assert_eq!(true, p0.x <= p1.x);
 
@@ -405,6 +522,15 @@ where
 			x0 -= slope0;
 			x1 -= slope1;
 		}
+
+		if DRAW_WIRES {
+			/*
+			let color = O::red();
+			self.wire_line(&Line::new(vp0, vp1), &color);
+			self.wire_line(&Line::new(vp1, vp2), &color);
+			self.wire_line(&Line::new(vp2, vp0), &color);
+			*/
+		}
 	}
 
 	pub fn texture_triangle(&mut self, tri: &Triangle, material: &Material<O>, brightness: f32) {
@@ -415,7 +541,7 @@ where
 				self.fill_triangle(tri, &color);
 			}
 			_ => {
-				for tri in self.clip_triangle_to_edges(tri) {
+				for tri in self.clip_triangle_to_edges_deprecated(tri) {
 					let p0 = (self.view_to_screen(&tri.points[0]), tri.uvs[0]);
 					let p1 = (self.view_to_screen(&tri.points[1]), tri.uvs[1]);
 					let p2 = (self.view_to_screen(&tri.points[2]), tri.uvs[2]);
@@ -477,7 +603,7 @@ where
 	}
 
 	pub fn fill_triangle(&mut self, tri: &Triangle, color: &O) {
-		for tri in self.clip_triangle_to_edges(tri) {
+		for tri in self.clip_triangle_to_edges_deprecated(tri) {
 			let p0 = self.view_to_screen(&tri.points[0]);
 			let p1 = self.view_to_screen(&tri.points[1]);
 			let p2 = self.view_to_screen(&tri.points[2]);
@@ -804,9 +930,9 @@ where
 				continue;
 			}
 
-			let p0 = tri[0].position();
-			let p1 = tri[1].position();
-			let p2 = tri[2].position();
+			let p0 = na::Point3::from_homogeneous(*tri[0].position()).unwrap();
+			let p1 = na::Point3::from_homogeneous(*tri[1].position()).unwrap();
+			let p2 = na::Point3::from_homogeneous(*tri[2].position()).unwrap();
 
 			// Backface cull
 			let winding = (p1 - p0).cross(&(p2 - p0));
@@ -814,7 +940,6 @@ where
 				tri.clear();
 				continue;
 			}
-
 			self.rasterize_triangle(&[&tri[0], &tri[1], &tri[2]], fragment_shader);
 			tri.clear();
 		}
