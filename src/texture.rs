@@ -1,6 +1,5 @@
 use crate::buffer::{Blendable, Buffer};
 use image::io::Reader as ImageReader;
-use image::Rgba;
 use std::error::Error;
 
 #[derive(Clone)]

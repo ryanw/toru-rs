@@ -85,10 +85,10 @@ impl OrbitCamera {
 	pub fn rotate(&mut self, lon: f32, lat: f32) {
 		self.rotation.x += lon;
 		self.rotation.y += lat;
-		if (self.rotation.y < -PI / 2.0) {
+		if self.rotation.y < -PI / 2.0 {
 			self.rotation.y = -PI / 2.0;
 		}
-		if (self.rotation.y > PI / 2.0) {
+		if self.rotation.y > PI / 2.0 {
 			self.rotation.y = PI / 2.0;
 		}
 	}

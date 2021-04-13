@@ -67,7 +67,7 @@ impl<'a, P: Blendable> Iterator for CubeIterator<'a, P> {
 		let s = self.cube.size;
 		let p = 1.0 + self.space;
 
-		let mut tri = match self.current {
+		let tri = match self.current {
 			// Near
 			0 => Triangle::new(
 				na::Point3::new(-s, -s, -s * p),

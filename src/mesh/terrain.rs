@@ -96,15 +96,15 @@ impl<'a, P: Blendable> Iterator for TerrainIterator<'a, P> {
 		let p2 = self.terrain.points[idx + w];
 		let p3 = self.terrain.points[idx + w + 1];
 
-		let mut tri = if self.current % 2 == 0 {
+		let tri = if self.current % 2 == 0 {
 			Triangle::new(p0, p2, p1)
 		} else {
 			Triangle::new(p2, p3, p1)
 		};
 
+		/* FIXME
 		let elevation = ((((p0.coords + p1.coords + p2.coords) / 3.0).y - 2.0) * -10.0) as i32;
 
-		/* FIXME
 		let color: P = match elevation {
 		50..=100 => Color::white(),
 		30..=49 => Color::green(),

@@ -1,13 +1,11 @@
 use nalgebra as na;
 use std::{fs, io, io::BufRead};
-
 mod geom;
 pub use geom::*;
 mod cube;
 pub use cube::*;
 mod terrain;
-use crate::{Blendable, Color, Material, Texture};
-use std::f32::consts::PI;
+use crate::{Blendable, Color, Material};
 use std::ops::Deref;
 pub use terrain::*;
 
@@ -102,37 +100,34 @@ impl<P: Blendable> StaticMesh<P> {
 
 	pub fn sphere(radius: f32, resolution: u8) -> Self {
 		let mut mesh: StaticMesh<P> = StaticMesh::default();
-		let t = ((1.0 + 5.0f32.sqrt()) / 2.0);
+		let t = (1.0 + 5.0f32.sqrt()) / 2.0;
 
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(-1.0, t, 0.0).normalize()));
+			.push(na::Point3::from(na::Vector3::new(-1.0, t, 0.0).normalize()));
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(1.0, t, 0.0).normalize()));
-		mesh.vertices.push(na::Point3::from_coordinates(
-			na::Vector3::new(-1.0, -t, 0.0).normalize(),
-		));
+			.push(na::Point3::from(na::Vector3::new(1.0, t, 0.0).normalize()));
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(1.0, -t, 0.0).normalize()));
+			.push(na::Point3::from(na::Vector3::new(-1.0, -t, 0.0).normalize()));
+		mesh.vertices
+			.push(na::Point3::from(na::Vector3::new(1.0, -t, 0.0).normalize()));
 
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(0.0, -1.0, t).normalize()));
+			.push(na::Point3::from(na::Vector3::new(0.0, -1.0, t).normalize()));
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(0.0, 1.0, t).normalize()));
-		mesh.vertices.push(na::Point3::from_coordinates(
-			na::Vector3::new(0.0, -1.0, -t).normalize(),
-		));
+			.push(na::Point3::from(na::Vector3::new(0.0, 1.0, t).normalize()));
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(0.0, 1.0, -t).normalize()));
+			.push(na::Point3::from(na::Vector3::new(0.0, -1.0, -t).normalize()));
+		mesh.vertices
+			.push(na::Point3::from(na::Vector3::new(0.0, 1.0, -t).normalize()));
 
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(t, 0.0, -1.0).normalize()));
+			.push(na::Point3::from(na::Vector3::new(t, 0.0, -1.0).normalize()));
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(t, 0.0, 1.0).normalize()));
-		mesh.vertices.push(na::Point3::from_coordinates(
-			na::Vector3::new(-t, 0.0, -1.0).normalize(),
-		));
+			.push(na::Point3::from(na::Vector3::new(t, 0.0, 1.0).normalize()));
 		mesh.vertices
-			.push(na::Point3::from_coordinates(na::Vector3::new(-t, 0.0, 1.0).normalize()));
+			.push(na::Point3::from(na::Vector3::new(-t, 0.0, -1.0).normalize()));
+		mesh.vertices
+			.push(na::Point3::from(na::Vector3::new(-t, 0.0, 1.0).normalize()));
 
 		let mut triangles = vec![];
 		triangles.push((5, 11, 0));
@@ -159,8 +154,8 @@ impl<P: Blendable> StaticMesh<P> {
 		triangles.push((7, 6, 8));
 		triangles.push((1, 8, 9));
 
-		let mut get_mid = |p0: &na::Point3<f32>, p1: &na::Point3<f32>| -> na::Point3<f32> {
-			let mut mid = na::Point3::from_coordinates((p0.coords + p1.coords).normalize());
+		let get_mid = |p0: &na::Point3<f32>, p1: &na::Point3<f32>| -> na::Point3<f32> {
+			let mid = na::Point3::from((p0.coords + p1.coords).normalize());
 			mid
 		};
 
@@ -266,26 +261,9 @@ impl<'a, P: Blendable> Iterator for StaticMeshIterator<'a, P> {
 		let p1 = self.mesh.vertices[tri.1].clone();
 		let p2 = self.mesh.vertices[tri.2].clone();
 
-		let uv0 = lon_lat_to_uv(&to_lon_lat(&p0));
-		let uv1 = lon_lat_to_uv(&to_lon_lat(&p1));
-		let uv2 = lon_lat_to_uv(&to_lon_lat(&p2));
-
-		let tri = Triangle::new(p0, p1, p2).uv(uv0, uv1, uv2);
+		let tri = Triangle::new(p0, p1, p2);
 
 		self.current += 1;
 		Some(tri)
 	}
-}
-
-fn to_lon_lat(point: &na::Point3<f32>) -> na::Vector2<f32> {
-	let v = point.coords.normalize();
-	let mut lat = v.y.acos() - PI / 2.0;
-	let mut lon = v.z.atan2(v.x);
-	return na::Vector2::new(lon, lat);
-}
-
-fn lon_lat_to_uv(ll: &na::Vector2<f32>) -> na::Point2<f32> {
-	let x = (ll.x.to_degrees() + 180.0) / 360.0;
-	let y = 1.0 - (ll.y.to_degrees() + 90.0) / 180.0;
-	return na::Point2::new(x, y);
 }

@@ -1,4 +1,4 @@
-use crate::{Blendable, Color, Texture};
+use crate::{Blendable, Texture};
 
 #[derive(Clone)]
 pub enum Material<P: Blendable> {

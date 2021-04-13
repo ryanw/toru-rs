@@ -1,4 +1,3 @@
-use crate::{Blendable, Color, Material, Texture};
 use nalgebra as na;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -15,7 +14,7 @@ impl Triangle {
 		Self::from_points([p0, p1, p2])
 	}
 
-	pub fn uv(mut self, p0: na::Point2<f32>, p1: na::Point2<f32>, p2: na::Point2<f32>) -> Self {
+	pub fn uv(self, p0: na::Point2<f32>, p1: na::Point2<f32>, p2: na::Point2<f32>) -> Self {
 		self.uvw(
 			na::Vector3::new(p0.x, p0.y, 1.0),
 			na::Vector3::new(p1.x, p1.y, 1.0),
@@ -79,85 +78,6 @@ impl Triangle {
 		self.uvs[1].unscale_mut(v1.w);
 		self.uvs[2].unscale_mut(v2.w);
 	}
-
-	pub fn clip_to_plane(&self, plane: &Plane) -> Vec<Triangle> {
-		let mut inside = Vec::with_capacity(3);
-		let mut outside = Vec::with_capacity(3);
-
-		let d0 = plane.distance_to_point(&self.points[0]);
-		let d1 = plane.distance_to_point(&self.points[1]);
-		let d2 = plane.distance_to_point(&self.points[2]);
-
-		if d0 >= 0.0 {
-			inside.push((&self.points[0], &self.uvs[0]));
-		} else {
-			outside.push((&self.points[0], &self.uvs[0]));
-		}
-		if d1 >= 0.0 {
-			inside.push((&self.points[1], &self.uvs[1]));
-		} else {
-			outside.push((&self.points[1], &self.uvs[1]));
-		}
-		if d2 >= 0.0 {
-			inside.push((&self.points[2], &self.uvs[2]));
-		} else {
-			outside.push((&self.points[2], &self.uvs[2]));
-		}
-
-		if inside.len() == 0 {
-			// Triangle is outside, so return nothing
-			return vec![];
-		}
-
-		if outside.len() == 0 {
-			// Triangle is entirely inside, keep untouched
-			return vec![self.clone()];
-		}
-
-		// Triangle overlaps plane, need to split it up
-
-		let mut t = 0.0;
-		if inside.len() == 1 {
-			// Create single new triangle with base chopped off
-			let mut new_tri = self.clone();
-			new_tri.points[0] = inside[0].0.clone();
-			new_tri.uvs[0] = inside[0].1.clone();
-			let (p, t) = Line::new(inside[0].0.clone(), outside[0].0.clone()).intersects_plane(&plane);
-			new_tri.points[1] = p;
-			new_tri.uvs[1] = inside[0].1.lerp(outside[0].1, t);
-			let (p, t) = Line::new(inside[0].0.clone(), outside[1].0.clone()).intersects_plane(&plane);
-			new_tri.points[2] = p;
-			new_tri.uvs[2] = inside[0].1.lerp(outside[1].1, t);
-			return vec![new_tri];
-		}
-
-		if outside.len() == 1 {
-			// Create a quad from the triangle with the tip chopped off
-			let mut new_tri0 = self.clone();
-			let mut new_tri1 = self.clone();
-
-			new_tri0.points[0] = inside[0].0.clone();
-			new_tri0.points[1] = inside[1].0.clone();
-			new_tri0.uvs[0] = inside[0].1.clone();
-			new_tri0.uvs[1] = inside[1].1.clone();
-			let (p, t) = Line::new(inside[0].0.clone(), outside[0].0.clone()).intersects_plane(&plane);
-			new_tri0.points[2] = p;
-			new_tri0.uvs[2] = inside[0].1.lerp(outside[0].1, t);
-
-			new_tri1.points[0] = new_tri0.points[1].clone();
-			new_tri1.points[1] = new_tri0.points[2].clone();
-			new_tri1.uvs[0] = new_tri0.uvs[1].clone();
-			new_tri1.uvs[1] = new_tri0.uvs[2].clone();
-			let (p, t) = Line::new(inside[1].0.clone(), outside[0].0.clone()).intersects_plane(&plane);
-			new_tri1.points[2] = p;
-			new_tri1.uvs[2] = inside[1].1.lerp(outside[0].1, t);
-
-			return vec![new_tri0, new_tri1];
-		}
-
-		// Should never happen
-		unreachable!("Your triangle is weird");
-	}
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -186,7 +106,7 @@ impl Line {
 		let t = self.intersects_offset(plane);
 		let start_to_end = self.end.coords - self.start.coords;
 		let intersect = start_to_end * t;
-		(na::Point3::from_coordinates(self.start.coords + intersect), t)
+		(na::Point3::from(self.start.coords + intersect), t)
 	}
 }
 

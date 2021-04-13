@@ -1,4 +1,4 @@
-use crate::{Blendable, Camera};
+use crate::Blendable;
 use nalgebra as na;
 use std::marker::PhantomData;
 
@@ -31,9 +31,9 @@ where
 {
 	pub vertex_shader: VS,
 	pub fragment_shader: FS,
-	_phantomV: PhantomData<V>,
-	_phantomF: PhantomData<F>,
-	_phantomO: PhantomData<O>,
+	_phantom_v: PhantomData<V>,
+	_phantom_f: PhantomData<F>,
+	_phantom_o: PhantomData<O>,
 }
 
 impl<VS, FS, V, F, O> Program<VS, FS, V, F, O>
@@ -48,9 +48,9 @@ where
 		Self {
 			vertex_shader,
 			fragment_shader,
-			_phantomV: PhantomData::default(),
-			_phantomF: PhantomData::default(),
-			_phantomO: PhantomData::default(),
+			_phantom_v: PhantomData::default(),
+			_phantom_f: PhantomData::default(),
+			_phantom_o: PhantomData::default(),
 		}
 	}
 }
