@@ -930,9 +930,23 @@ where
 				continue;
 			}
 
-			let p0 = na::Point3::from_homogeneous(*tri[0].position()).unwrap();
-			let p1 = na::Point3::from_homogeneous(*tri[1].position()).unwrap();
-			let p2 = na::Point3::from_homogeneous(*tri[2].position()).unwrap();
+			let mut p0 = *tri[0].position();
+			let mut p1 = *tri[1].position();
+			let mut p2 = *tri[2].position();
+			// Dirty hax
+			if p0.w == 0.0 {
+				p0.w = 0.000001;
+			}
+			if p1.w == 0.0 {
+				p1.w = 0.000001;
+			}
+			if p2.w == 0.0 {
+				p2.w = 0.000001;
+			}
+
+			let p0 = na::Point3::from_homogeneous(p0).unwrap();
+			let p1 = na::Point3::from_homogeneous(p1).unwrap();
+			let p2 = na::Point3::from_homogeneous(p2).unwrap();
 
 			// Backface cull
 			let winding = (p1 - p0).cross(&(p2 - p0));
@@ -963,7 +977,7 @@ where
 			let world_normal = model.transform_vector(&tri.normal).normalize();
 
 			// Backface culling
-			let camera_ray = tri.points[0] - camera.position;
+			let camera_ray = tri.points[0] - camera.position();
 			if world_normal.dot(&camera_ray) < 0.0 {
 				continue;
 			}

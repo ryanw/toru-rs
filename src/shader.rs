@@ -45,8 +45,6 @@ where
 pub trait VertexShader<I: Vertex, O: Varyings> {
 	fn setup(&mut self) {}
 	fn main(&mut self, vertex: &I) -> O;
-	fn set_camera(&mut self, camera: &Camera) {}
-	fn set_model(&mut self, model: &na::Matrix4<f32>) {}
 }
 
 pub trait FragmentShader<I: Varyings, O: Blendable> {

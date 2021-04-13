@@ -9,7 +9,7 @@ mod shader;
 mod texture;
 
 pub use buffer::{Blendable, Buffer};
-pub use camera::Camera;
+pub use camera::*;
 pub use canvas::{Canvas, DrawContext};
 pub use color::Color;
 pub use material::Material;
