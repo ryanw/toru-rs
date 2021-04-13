@@ -1,6 +1,6 @@
 use crate::camera::Camera;
 use crate::mesh::{Line, Mesh, Plane, Triangle};
-use crate::{Blendable, Buffer, Color, FragmentShader, Material, Program, Varyings, Vertex};
+use crate::{Blendable, Buffer, Color, FragmentShader, Material, Program, Varyings, Vertex, VertexShader};
 use nalgebra as na;
 use std::mem::{size_of, transmute};
 use std::time::Instant;
@@ -313,7 +313,7 @@ where
 		tris
 	}
 
-	pub fn rasterize_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut Box<dyn FragmentShader<F, O>>)
+	pub fn rasterize_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut impl FragmentShader<F, O>)
 	where
 		F: Varyings,
 	{
@@ -394,7 +394,7 @@ where
 		}
 	}
 
-	fn rasterize_flat_bottom_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut Box<dyn FragmentShader<F, O>>)
+	fn rasterize_flat_bottom_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut impl FragmentShader<F, O>)
 	where
 		F: Varyings,
 	{
@@ -464,7 +464,7 @@ where
 		}
 	}
 
-	fn rasterize_flat_top_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut Box<dyn FragmentShader<F, O>>)
+	fn rasterize_flat_top_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut impl FragmentShader<F, O>)
 	where
 		F: Varyings,
 	{
@@ -913,8 +913,10 @@ where
 		);
 	}
 
-	pub fn draw_triangles<V, F, I>(&mut self, program: &mut Program<V, F, O>, vertices: I)
+	pub fn draw_triangles<VS, FS, V, F, I>(&mut self, program: &mut Program<VS, FS, V, F, O>, vertices: I)
 	where
+		VS: VertexShader<V, F>,
+		FS: FragmentShader<F, O>,
 		V: Vertex + std::fmt::Debug + 'a,
 		F: Varyings + std::fmt::Debug,
 		I: Iterator<Item = &'a V>,

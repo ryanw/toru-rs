@@ -1,5 +1,6 @@
 use crate::{Blendable, Camera};
 use nalgebra as na;
+use std::marker::PhantomData;
 
 pub trait Vertex {}
 pub trait Varyings: Clone + std::fmt::Debug {
@@ -20,24 +21,36 @@ pub trait Varyings: Clone + std::fmt::Debug {
 	}
 }
 
-pub struct Program<V: Vertex, F: Varyings, O: Blendable> {
-	pub vertex_shader: Box<dyn VertexShader<V, F>>,
-	pub fragment_shader: Box<dyn FragmentShader<F, O>>,
-}
-
-impl<V, F, O> Program<V, F, O>
+pub struct Program<VS, FS, V, F, O>
 where
+	VS: VertexShader<V, F>,
+	FS: FragmentShader<F, O>,
 	V: Vertex,
 	F: Varyings,
 	O: Blendable,
 {
-	pub fn new(
-		vertex_shader: impl VertexShader<V, F> + 'static,
-		fragment_shader: impl FragmentShader<F, O> + 'static,
-	) -> Self {
+	pub vertex_shader: VS,
+	pub fragment_shader: FS,
+	_phantomV: PhantomData<V>,
+	_phantomF: PhantomData<F>,
+	_phantomO: PhantomData<O>,
+}
+
+impl<VS, FS, V, F, O> Program<VS, FS, V, F, O>
+where
+	VS: VertexShader<V, F>,
+	FS: FragmentShader<F, O>,
+	V: Vertex,
+	F: Varyings,
+	O: Blendable,
+{
+	pub fn new(vertex_shader: VS, fragment_shader: FS) -> Self {
 		Self {
-			vertex_shader: Box::new(vertex_shader),
-			fragment_shader: Box::new(fragment_shader),
+			vertex_shader,
+			fragment_shader,
+			_phantomV: PhantomData::default(),
+			_phantomF: PhantomData::default(),
+			_phantomO: PhantomData::default(),
 		}
 	}
 }
