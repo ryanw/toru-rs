@@ -35,12 +35,10 @@ impl<P> Texture<P>
 where
 	P: Blendable,
 {
-	pub fn buffer(&self) -> &Buffer<P> {
-		&self.buffer
-	}
-
-	pub fn buffer_mut(&mut self) -> &mut Buffer<P> {
-		&mut self.buffer
+	pub fn new(width: u32, height: u32) -> Self {
+		Self {
+			buffer: Buffer::new(width, height),
+		}
 	}
 
 	pub fn width(&self) -> u32 {
@@ -66,9 +64,9 @@ where
 			y = 0.0;
 		}
 
-		let xi = (x * (self.width() - 1) as f32) as i32;
-		let yi = (y * (self.height() - 1) as f32) as i32;
-		self.buffer.get(xi, yi)
+		let xi = (x * (self.width() - 1) as f32) as u32;
+		let yi = (y * (self.height() - 1) as f32) as u32;
+		self.get_pixel(xi, yi)
 	}
 
 	pub fn get_pixel(&self, x: u32, y: u32) -> Option<&P> {
