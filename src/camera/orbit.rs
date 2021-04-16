@@ -11,6 +11,7 @@ pub struct OrbitCamera {
 	pub target: na::Point3<f32>,
 	pub rotation: na::Vector2<f32>,
 	pub fov: f32,
+	pixel_ratio: f32,
 }
 
 impl Default for OrbitCamera {
@@ -23,6 +24,7 @@ impl Default for OrbitCamera {
 			target: na::Point3::new(0.0, 0.0, 0.0),
 			rotation: na::Vector2::new(0.0, 0.0),
 			fov: 45.0,
+			pixel_ratio: 1.0,
 		}
 	}
 }
@@ -33,6 +35,11 @@ impl Camera for OrbitCamera {
 			.try_inverse()
 			.unwrap()
 			.transform_point(&na::Point3::new(0.0, 0.0, 0.0))
+	}
+
+	fn set_pixel_ratio(&mut self, ratio: f32) {
+		self.pixel_ratio = ratio;
+		self.update_projection();
 	}
 
 	fn view(&self) -> na::Matrix4<f32> {
@@ -75,7 +82,16 @@ impl OrbitCamera {
 	pub fn resize(&mut self, width: f32, height: f32) {
 		self.width = width;
 		self.height = height;
-		self.projection = na::Perspective3::new(width / height, self.fov.to_radians(), 0.1, 1000.0);
+		self.update_projection();
+	}
+
+	fn update_projection(&mut self) {
+		self.projection = na::Perspective3::new(
+			(self.width * self.pixel_ratio) / self.height,
+			self.fov.to_radians(),
+			0.1,
+			1000.0,
+		);
 	}
 
 	pub fn size(&self) -> (f32, f32) {

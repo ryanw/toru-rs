@@ -9,6 +9,7 @@ pub struct FreeCamera {
 	pub position: na::Point3<f32>,
 	pub rotation: na::Vector3<f32>,
 	pub fov: f32,
+	pixel_ratio: f32,
 }
 
 impl Default for FreeCamera {
@@ -20,6 +21,7 @@ impl Default for FreeCamera {
 			position: na::Point3::new(0.0, 0.0, -1.5),
 			rotation: na::Vector3::new(0.0, 0.0, 0.0),
 			fov: 45.0,
+			pixel_ratio: 1.0,
 		}
 	}
 }
@@ -27,6 +29,11 @@ impl Default for FreeCamera {
 impl Camera for FreeCamera {
 	fn position(&self) -> na::Point3<f32> {
 		self.position.clone()
+	}
+
+	fn set_pixel_ratio(&mut self, ratio: f32) {
+		self.pixel_ratio = ratio;
+		self.update_projection();
 	}
 
 	fn view(&self) -> na::Matrix4<f32> {
@@ -69,7 +76,16 @@ impl FreeCamera {
 	pub fn resize(&mut self, width: f32, height: f32) {
 		self.width = width;
 		self.height = height;
-		self.projection = na::Perspective3::new(width / height, self.fov.to_radians(), 0.1, 1000.0);
+		self.update_projection();
+	}
+
+	fn update_projection(&mut self) {
+		self.projection = na::Perspective3::new(
+			(self.width * self.pixel_ratio) / self.height,
+			self.fov.to_radians(),
+			0.1,
+			1000.0,
+		);
 	}
 
 	pub fn size(&self) -> (f32, f32) {

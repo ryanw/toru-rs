@@ -48,7 +48,7 @@ where
 		self.buffer.height()
 	}
 
-	pub fn get_normalized_pixel(&self, mut x: f32, mut y: f32) -> Option<&P> {
+	pub fn get_normalized_pixel(&self, mut x: f32, mut y: f32) -> P {
 		// Clamp to edges
 		if x > 1.0 {
 			x = 1.0;
@@ -63,9 +63,22 @@ where
 			y = 0.0;
 		}
 
-		let xi = (x * (self.width() - 1) as f32) as u32;
-		let yi = (y * (self.height() - 1) as f32) as u32;
-		self.get_pixel(xi, yi)
+		let xf = x * (self.width() - 1) as f32;
+		let yf = y * (self.height() - 1) as f32;
+
+		let xi = xf.floor() as u32;
+		let yi = yf.floor() as u32;
+		let tl = self.get_pixel(xi, yi).unwrap();
+		let tr = self.get_pixel(xi + 1, yi).unwrap_or(tl);
+		let bl = self.get_pixel(xi, yi + 1).unwrap_or(tl);
+		let br = self.get_pixel(xi + 1, yi + 1).unwrap_or(bl);
+
+		let xn = xf.fract();
+		let yn = yf.fract();
+		let t = tl.lerp(&tr, xn);
+		let b = bl.lerp(&br, xn);
+
+		t.lerp(&b, yn)
 	}
 
 	pub fn get_pixel(&self, x: u32, y: u32) -> Option<&P> {

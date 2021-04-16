@@ -9,6 +9,7 @@ pub trait Camera {
 	fn position(&self) -> na::Point3<f32>;
 	fn view(&self) -> na::Matrix4<f32>;
 	fn projection(&self) -> na::Matrix4<f32>;
+	fn set_pixel_ratio(&mut self, ratio: f32);
 
 	fn view_projection(&self) -> na::Matrix4<f32> {
 		self.projection() * self.view()

@@ -106,13 +106,13 @@ impl<'a, P: Blendable> Iterator for TerrainIterator<'a, P> {
 		let elevation = ((((p0.coords + p1.coords + p2.coords) / 3.0).y - 2.0) * -10.0) as i32;
 
 		let color: P = match elevation {
-		50..=100 => Color::white(),
-		30..=49 => Color::green(),
-		20..=29 => Color::yellow(),
-		10..=29 => Color::rgb(255, 100, 0),
-		0..=9 => Color::rgb(0, 100, 255),
-		-10..=-1 => Color::rgb(0, 0, 255),
-		_ => Color::rgb(0, 0, 50),
+			50..=100 => Color::white(),
+			30..=49 => Color::green(),
+			20..=29 => Color::yellow(),
+			10..=29 => Color::rgb(255, 100, 0),
+			0..=9 => Color::rgb(0, 100, 255),
+			-10..=-1 => Color::rgb(0, 0, 255),
+			_ => Color::rgb(0, 0, 50),
 		};
 
 		tri.color = Some(color);
@@ -140,12 +140,13 @@ impl<'a> Iterator for TerrainIterator<'a, mutunga::Color> {
 		let p2 = self.terrain.points[idx + w];
 		let p3 = self.terrain.points[idx + w + 1];
 
-		let mut tri = if self.current % 2 == 0 {
+		let tri = if self.current % 2 == 0 {
 			Triangle::new(p0, p2, p1)
 		} else {
 			Triangle::new(p2, p3, p1)
 		};
 
+		/*
 		let elevation = ((((p0.coords + p1.coords + p2.coords) / 3.0).y - 2.0) * -10.0) as i32;
 
 		let color = match elevation {
@@ -157,6 +158,7 @@ impl<'a> Iterator for TerrainIterator<'a, mutunga::Color> {
 			-10..=-1 => mutunga::Color::rgb(0, 0, 255),
 			_ => mutunga::Color::rgb(0, 0, 50),
 		};
+		*/
 
 		self.current += 1;
 		Some(tri)

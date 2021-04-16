@@ -4,7 +4,8 @@ version = "0.1.0"
 authors = ["Ryan Williams <git@ryan.nz>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["mutunga"]
 
 [dependencies]
 nalgebra = "0.25"
@@ -12,7 +13,7 @@ noise = "0.6.0"
 image = "0.23"
 log = "0.4"
 # Terminal rendering
-mutunga = { path = "../mutunga", optional = true }
+mutunga = { git = "https://github.com/ryanw/mutunga-rs.git", optional = true }
 
 [dev-dependencies]
 # Graphical rendering
@@ -27,8 +28,4 @@ required-features = ["mutunga"]
 
 [[example]]
 name = "mouse"
-required-features = ["mutunga"]
-
-[[example]]
-name = "terrain"
 required-features = ["mutunga"]

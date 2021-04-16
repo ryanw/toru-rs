@@ -11,6 +11,7 @@ pub trait Blendable: Default + Copy + PartialEq {
 	fn blue() -> Self;
 
 	fn set_brightness(&mut self, _brightness: f32) {}
+	fn lerp(&self, other: &Self, amount: f32) -> Self;
 }
 
 impl Blendable for f32 {
@@ -36,6 +37,40 @@ impl Blendable for f32 {
 
 	fn blue() -> Self {
 		0.75
+	}
+
+	fn lerp(&self, other: &Self, a: f32) -> f32 {
+		self * (1.0 - a) + other * a
+	}
+}
+
+impl Blendable for u8 {
+	fn blend(&self, other: &u8) -> u8 {
+		if other < self {
+			self.clone()
+		} else {
+			other.clone()
+		}
+	}
+
+	fn set_brightness(&mut self, brightness: f32) {
+		*self = ((*self as f32) * brightness) as u8;
+	}
+
+	fn red() -> Self {
+		64
+	}
+
+	fn green() -> Self {
+		128
+	}
+
+	fn blue() -> Self {
+		196
+	}
+
+	fn lerp(&self, other: &Self, a: f32) -> u8 {
+		((*self as f32) * (1.0 - a) + (*other as f32) * a) as u8
 	}
 }
 
@@ -73,6 +108,21 @@ impl Blendable for mutunga::Color {
 
 	fn blue() -> Self {
 		mutunga::Color::rgb(0, 0, 255)
+	}
+
+	fn lerp(&self, other: &Self, amount: f32) -> Self {
+		if amount <= 0.0 {
+			self.clone()
+		} else if amount >= 1.0 {
+			other.clone()
+		} else {
+			let r = self.r.lerp(&other.r, amount);
+			let g = self.g.lerp(&other.g, amount);
+			let b = self.b.lerp(&other.b, amount);
+			let a = self.a.lerp(&other.a, amount);
+
+			mutunga::Color::rgba(r, g, b, a)
+		}
 	}
 }
 

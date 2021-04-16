@@ -1,7 +1,6 @@
 use crate::mesh::{Line, Triangle};
 use crate::{Blendable, Buffer, Color, FragmentShader, Program, Varyings, Vertex, VertexShader};
 use nalgebra as na;
-use std::time::Instant;
 
 const DRAW_NORMALS: bool = false;
 const DRAW_WIRES: bool = false;
@@ -472,8 +471,6 @@ where
 }
 
 pub struct Canvas<O: Blendable = Color> {
-	last_tick_at: Instant,
-	callback: Box<dyn FnMut(&mut DrawContext<O>, f32)>,
 	buffer: Buffer<O>,
 	depth: Buffer<f32>,
 	transform_stack: Vec<na::Matrix4<f32>>,
@@ -487,10 +484,8 @@ impl Canvas<Color> {
 }
 
 impl<O: Blendable> Canvas<O> {
-	pub fn new(width: u32, height: u32, callback: impl FnMut(&mut DrawContext<O>, f32) + 'static) -> Self {
+	pub fn new(width: u32, height: u32) -> Self {
 		Self {
-			last_tick_at: Instant::now(),
-			callback: Box::new(callback),
 			buffer: Buffer::new(width, height),
 			depth: Buffer::new_with_value(std::f32::INFINITY, width, height),
 			transform_stack: vec![],
@@ -515,17 +510,6 @@ impl<O: Blendable> Canvas<O> {
 				}
 			}
 		}
-	}
-
-	pub fn tick(&mut self) {
-		let dt = self.last_tick_at.elapsed();
-		self.last_tick_at = Instant::now();
-		let mut context = DrawContext {
-			buffer: &mut self.buffer,
-			depth: &mut self.depth,
-			transform: self.transform,
-		};
-		(self.callback)(&mut context, dt.as_secs_f32());
 	}
 
 	pub fn context<'a>(&'a mut self) -> DrawContext<'a, O> {

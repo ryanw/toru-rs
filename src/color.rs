@@ -142,6 +142,23 @@ impl Blendable for Color {
 	fn blue() -> Self {
 		Color::rgb(0, 0, 255)
 	}
+
+	fn lerp(&self, other: &Self, amount: f32) -> Self {
+		if amount <= 0.0 {
+			self.clone()
+		} else if amount >= 1.0 {
+			other.clone()
+		} else {
+			let inv = 1.0 - amount;
+
+			let r = (self.r as f32 * inv + other.r as f32 * amount) as u8;
+			let g = (self.g as f32 * inv + other.g as f32 * amount) as u8;
+			let b = (self.b as f32 * inv + other.b as f32 * amount) as u8;
+			let a = (self.a as f32 * inv + other.a as f32 * amount) as u8;
+
+			Color::rgba(r, g, b, a)
+		}
+	}
 }
 
 #[cfg(feature = "mutunga")]
