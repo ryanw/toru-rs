@@ -3,11 +3,9 @@ use std::{fs, io, io::BufRead};
 mod geom;
 pub use geom::*;
 mod cube;
-pub use cube::*;
-mod terrain;
 use crate::{Blendable, Color, Material};
+pub use cube::*;
 use std::ops::Deref;
-pub use terrain::*;
 
 mod objfile {
 	use nalgebra as na;

@@ -9,18 +9,16 @@ default = ["mutunga"]
 
 [dependencies]
 nalgebra = "0.25"
-noise = "0.6.0"
 image = "0.23"
 log = "0.4"
 # Terminal rendering
-mutunga = { git = "https://github.com/ryanw/mutunga-rs.git", optional = true }
+mutunga = { path = "../mutunga", optional = true }
 
 [dev-dependencies]
-# Graphical rendering
-pixels = "0.0.4" 
-winit = "0.22.2"
-winit_input_helper = "0.7.0"
 flexi_logger = "0.17"
+
+# For pretty terrain
+noise = "0.7.0"
 
 [[example]]
 name = "cube"
