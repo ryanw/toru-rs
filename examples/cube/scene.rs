@@ -16,7 +16,7 @@ pub struct CubeScene {
 impl CubeScene {
 	pub fn new() -> Self {
 		// Load texture image
-		let texture: Texture<Color> = Texture::load("assets/checker.png").expect("Couldn't find the texture");
+		let texture: Texture<Color> = Texture::load("examples/assets/checker.png").expect("Couldn't find the texture");
 
 		// Setup some shaders
 		let vertex_shader = CubeVertexShader::new();

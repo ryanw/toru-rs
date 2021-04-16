@@ -12,7 +12,7 @@ nalgebra = "0.25"
 image = "0.23"
 log = "0.4"
 # Terminal rendering
-mutunga = { path = "../mutunga", optional = true }
+mutunga = { git = "https://github.com/ryanw/mutunga-rs.git", optional = true }
 
 [dev-dependencies]
 flexi_logger = "0.17"
