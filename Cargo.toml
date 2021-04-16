@@ -27,3 +27,6 @@ required-features = ["mutunga"]
 [[example]]
 name = "mouse"
 required-features = ["mutunga"]
+
+[profile.dev]
+opt-level = 2 # Too slow below level 2
