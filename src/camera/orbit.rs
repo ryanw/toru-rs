@@ -87,7 +87,7 @@ impl OrbitCamera {
 
 	fn update_projection(&mut self) {
 		self.projection = na::Perspective3::new(
-			(self.width * self.pixel_ratio) / self.height,
+			(self.width / self.pixel_ratio) / self.height,
 			self.fov.to_radians(),
 			0.1,
 			1000.0,
