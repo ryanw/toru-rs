@@ -51,13 +51,12 @@ impl TerrainScene {
 		let mut texture: Texture<Color> = Texture::new(TEXTURE_RES, TEXTURE_RES);
 		let scale = 0.05;
 		let n = OpenSimplex::new();
-		for y in 0..TEXTURE_RES {
-			for x in 0..TEXTURE_RES {
-				if let Some(pixel) = texture.get_pixel_mut(x, y) {
-					let val = n.get([scale * x as f64, scale * y as f64, 0.0]) + 0.5;
-					let r = (val * 255.0) as u8;
-					*pixel = Color::rgb(r, r, r);
-				}
+		for y in 0..TEXTURE_RES as i32 {
+			for x in 0..TEXTURE_RES as i32 {
+				let pixel = texture.get_pixel_mut(x, y);
+				let val = n.get([scale * x as f64, scale * y as f64, 0.0]) + 0.5;
+				let r = (val * 255.0) as u8;
+				*pixel = Color::rgb(r, r, r);
 			}
 		}
 

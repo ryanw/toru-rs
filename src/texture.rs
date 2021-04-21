@@ -2,9 +2,23 @@ use crate::buffer::{Blendable, Buffer};
 use image::io::Reader as ImageReader;
 use std::error::Error;
 
+#[derive(Copy, Clone, Debug)]
+pub enum TextureWrap {
+	Clamp,
+	Repeat,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum TextureFilter {
+	Nearest,
+	Bilinear,
+}
+
 #[derive(Clone)]
 pub struct Texture<P: Blendable> {
 	buffer: Buffer<P>,
+	wrap: TextureWrap,
+	filter: TextureFilter,
 }
 
 impl<P> Texture<P>
@@ -26,7 +40,11 @@ where
 				}
 			}
 		}
-		Ok(Self { buffer })
+		Ok(Self {
+			buffer,
+			wrap: TextureWrap::Clamp,
+			filter: TextureFilter::Bilinear,
+		})
 	}
 }
 
@@ -37,7 +55,25 @@ where
 	pub fn new(width: u32, height: u32) -> Self {
 		Self {
 			buffer: Buffer::new(width, height),
+			wrap: TextureWrap::Clamp,
+			filter: TextureFilter::Bilinear,
 		}
+	}
+
+	pub fn wrap(&self) -> TextureWrap {
+		self.wrap
+	}
+
+	pub fn wrap_mut(&mut self) -> &mut TextureWrap {
+		&mut self.wrap
+	}
+
+	pub fn filter(&self) -> TextureFilter {
+		self.filter
+	}
+
+	pub fn filter_mut(&mut self) -> &mut TextureFilter {
+		&mut self.filter
 	}
 
 	pub fn width(&self) -> u32 {
@@ -48,44 +84,56 @@ where
 		self.buffer.height()
 	}
 
-	pub fn get_normalized_pixel(&self, mut x: f32, mut y: f32) -> P {
-		// Clamp to edges
-		if x > 1.0 {
-			x = 1.0;
-		}
-		if y > 1.0 {
-			y = 1.0;
-		}
-		if x < 0.0 {
-			x = 0.0;
-		}
-		if y < 0.0 {
-			y = 0.0;
-		}
-
+	pub fn get_normalized_pixel(&self, x: f32, y: f32) -> P {
 		let xf = x * (self.width() - 1) as f32;
 		let yf = y * (self.height() - 1) as f32;
 
-		let xi = xf.floor() as u32;
-		let yi = yf.floor() as u32;
-		let tl = self.get_pixel(xi, yi).unwrap();
-		let tr = self.get_pixel(xi + 1, yi).unwrap_or(tl);
-		let bl = self.get_pixel(xi, yi + 1).unwrap_or(tl);
-		let br = self.get_pixel(xi + 1, yi + 1).unwrap_or(bl);
+		let xi = xf.floor() as i32;
+		let yi = yf.floor() as i32;
+		match self.filter {
+			TextureFilter::Nearest => self.get_pixel(xi, yi).clone(),
+			TextureFilter::Bilinear => {
+				let tl = self.get_pixel(xi, yi);
+				let tr = self.get_pixel(xi + 1, yi);
+				let bl = self.get_pixel(xi, yi + 1);
+				let br = self.get_pixel(xi + 1, yi + 1);
 
-		let xn = xf.fract();
-		let yn = yf.fract();
-		let t = tl.lerp(&tr, xn);
-		let b = bl.lerp(&br, xn);
+				let xn = xf.fract();
+				let yn = yf.fract();
+				let t = tl.lerp(&tr, xn);
+				let b = bl.lerp(&br, xn);
 
-		t.lerp(&b, yn)
+				t.lerp(&b, yn)
+			}
+		}
 	}
 
-	pub fn get_pixel(&self, x: u32, y: u32) -> Option<&P> {
-		self.buffer.get(x as i32, y as i32)
+	pub fn get_pixel(&self, mut x: i32, mut y: i32) -> &P {
+		match self.wrap {
+			TextureWrap::Clamp => {
+				if x >= self.width() as i32 {
+					x = self.width() as i32 - 1;
+				}
+				if y >= self.height() as i32 {
+					y = self.height() as i32 - 1;
+				}
+				if x < 0 {
+					x = 0;
+				}
+				if y < 0 {
+					y = 0;
+				}
+			}
+			TextureWrap::Repeat => {
+				x = x.rem_euclid(self.width() as i32 - 1);
+				y = y.rem_euclid(self.height() as i32 - 1);
+			}
+		}
+
+		self.buffer.get(x, y).unwrap()
 	}
 
-	pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut P> {
-		self.buffer.get_mut(x as i32, y as i32)
+	pub fn get_pixel_mut(&mut self, x: i32, y: i32) -> &mut P {
+		self.buffer.get_mut(x, y).unwrap()
 	}
 }

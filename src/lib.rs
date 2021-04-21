@@ -17,4 +17,4 @@ pub use gradient::*;
 pub use material::Material;
 pub use mesh::{Cube, Mesh, StaticMesh, Triangle};
 pub use shader::*;
-pub use texture::Texture;
+pub use texture::*;
