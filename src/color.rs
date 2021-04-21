@@ -20,6 +20,14 @@ impl Color {
 		Self { r, g, b, a }
 	}
 
+	pub fn grey(val: u8) -> Self {
+		Self::rgb(val, val, val)
+	}
+
+	pub fn gray(val: u8) -> Self {
+		Self::grey(val)
+	}
+
 	pub fn transparent() -> Self {
 		Self { r: 0, g: 0, b: 0, a: 0 }
 	}
