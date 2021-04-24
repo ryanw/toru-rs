@@ -47,10 +47,11 @@ impl Camera for OrbitCamera {
 	}
 
 	fn view(&self) -> na::Matrix4<f32> {
-		let mut mat = na::Matrix4::new_translation(&self.target.coords);
+		let mut mat = na::Matrix4::identity();
 		mat *= na::Matrix4::new_translation(&na::Vector3::new(0.0, 0.0, -self.distance));
 		mat *= na::Matrix4::new_rotation(na::Vector3::new(self.rotation.y, 0.0, 0.0));
 		mat *= na::Matrix4::new_rotation(na::Vector3::new(0.0, self.rotation.x, 0.0));
+		mat *= na::Matrix4::new_translation(&self.target.coords.scale(-1.0));
 		mat *= na::Rotation3::face_towards(
 			&na::Vector3::new(0.0, 0.0, -self.distance),
 			&na::Vector3::new(0.0, -1.0, 0.0),
