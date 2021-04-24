@@ -1,5 +1,6 @@
 use crate::Blendable;
 
+#[derive(Clone)]
 pub struct Gradient<C: Blendable> {
 	colors: Vec<C>,
 }
@@ -7,6 +8,10 @@ pub struct Gradient<C: Blendable> {
 impl<C: Blendable> Gradient<C> {
 	pub fn new(colors: Vec<C>) -> Self {
 		Self { colors }
+	}
+
+	pub fn colors(&self) -> &[C] {
+		&self.colors
 	}
 
 	pub fn color(&self, n: f32) -> C {
