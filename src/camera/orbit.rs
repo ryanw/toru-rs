@@ -42,6 +42,10 @@ impl Camera for OrbitCamera {
 		self.update_projection();
 	}
 
+	fn pixel_ratio(&self) -> f32 {
+		self.pixel_ratio
+	}
+
 	fn view(&self) -> na::Matrix4<f32> {
 		let mut mat = na::Matrix4::new_translation(&self.target.coords);
 		mat *= na::Matrix4::new_translation(&na::Vector3::new(0.0, 0.0, -self.distance));

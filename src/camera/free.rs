@@ -36,6 +36,10 @@ impl Camera for FreeCamera {
 		self.update_projection();
 	}
 
+	fn pixel_ratio(&self) -> f32 {
+		self.pixel_ratio
+	}
+
 	fn view(&self) -> na::Matrix4<f32> {
 		let mut mat4 = na::Matrix4::new_translation(&self.position.coords);
 		mat4 *= self.rotation();
