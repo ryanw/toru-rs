@@ -162,6 +162,65 @@ where
 		tris
 	}
 
+	fn clip_line_to_edge<F>(&self, line: &[F], edge: usize, factor: f32) -> Option<[F; 2]>
+	where
+		F: Varyings,
+	{
+		let left_v = &line[0];
+		let right_v = &line[1];
+		let left_val = left_v.position()[edge] * factor;
+		let right_val = right_v.position()[edge] * factor;
+
+		let left_inside = left_val <= left_v.position().w;
+		let right_inside = right_val <= right_v.position().w;
+		if left_inside && right_inside {
+			return Some([left_v.clone(), right_v.clone()]);
+		} else if !left_inside && !right_inside {
+			return None;
+		}
+
+		if !left_inside {
+			let t = (left_v.position().w - left_val)
+				/ ((left_v.position().w - left_val) - (right_v.position().w - right_val));
+			if t < 0.0 || t > 1.0 {
+				None
+			} else {
+				Some([left_v.lerp(&right_v, t), right_v.clone()])
+			}
+		} else if !right_inside {
+			let t = (right_v.position().w - right_val)
+				/ ((right_v.position().w - right_val) - (left_v.position().w - left_val));
+			if t < 0.0 || t > 1.0 {
+				None
+			} else {
+				Some([right_v.lerp(&left_v, t), left_v.clone()])
+			}
+		} else {
+			None
+		}
+	}
+
+	fn clip_line_to_edges<F>(&self, line: &[F; 2]) -> Option<[F; 2]>
+	where
+		F: Varyings,
+	{
+		let mut line = [line[0].clone(), line[1].clone()];
+		for axis in 0..2 {
+			if let Some(new_line) = self.clip_line_to_edge(&line, axis, 1.0) {
+				line = new_line;
+			} else {
+				return None;
+			}
+			if let Some(new_line) = self.clip_line_to_edge(&line, axis, -1.0) {
+				line = new_line;
+			} else {
+				return None;
+			}
+		}
+
+		Some(line)
+	}
+
 	pub fn rasterize_triangle<F>(&mut self, tri: &[&F; 3], shader: &mut impl FragmentShader<F, O>)
 	where
 		F: Varyings,
@@ -382,15 +441,72 @@ where
 		}
 	}
 
-	pub fn draw_normalized_line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: O) {
-		let (w, h) = (self.buffer.width() as f32, self.buffer.height() as f32);
-		self.draw_line(
-			(w / 2.0 + w * x0) as i32,
-			(h / 2.0 + h * y0) as i32,
-			(w / 2.0 + w * x1) as i32,
-			(h / 2.0 + h * y1) as i32,
-			color,
-		);
+	pub fn rasterize_line<F>(&mut self, line: &[&F; 2], shader: &mut impl FragmentShader<F, O>)
+	where
+		F: Varyings,
+	{
+		if let Some(mut line) = self.clip_line_to_edges(&[line[0].clone(), line[1].clone()]) {
+			line[0].divide_perspective();
+			line[1].divide_perspective();
+			let mut start = &line[0];
+			let mut end = &line[1];
+			let mut vp0 = start.proj_position();
+			let mut vp1 = end.proj_position();
+			let mut p0 = self.view_to_screen(&vp0);
+			let mut p1 = self.view_to_screen(&vp1);
+
+			// Always draw top to bottom
+			if p0.y > p1.y {
+				std::mem::swap(&mut start, &mut end);
+				std::mem::swap(&mut vp0, &mut vp1);
+				std::mem::swap(&mut p0, &mut p1);
+			}
+
+			let dy = (p1.y - p0.y) + 1.0;
+			let slope = if dy == 0.0 { p1.x - p0.x } else { (p1.x - p0.x) / dy };
+
+			let mut x0 = p0.x;
+			for y in (p0.y as i32)..=(p1.y as i32) {
+				let x1 = if slope < 1.0 && slope > 0.0 {
+					x0 + 1.0
+				} else if slope > -1.0 && slope < 0.0 {
+					x0 - 1.0
+				} else {
+					x0 + slope
+				};
+
+				// Range has to be small to big...
+				let mut x_range_lr = (x0 as i32)..(x1 as i32);
+				let mut x_range_rl = ((x1 as i32)..(x0 as i32)).rev();
+				let x_range = if x0 < x1 {
+					&mut x_range_lr as &mut Iterator<Item = _>
+				} else {
+					&mut x_range_rl
+				};
+
+				for x in x_range {
+					let l = na::Vector2::new(x as f32 - p0.x, y as f32 - p0.y).magnitude();
+					let r = na::Vector2::new(p1.x - p0.x, p1.y - p0.y).magnitude();
+					let t = if l < r { l / r } else { r / l };
+					let p = start.lerp(&end, t);
+					let z = p.position().z;
+
+					// Depth test
+					if let Some(d) = self.depth.get_mut(x, y) {
+						if *d < z {
+							continue;
+						}
+						*d = z;
+					}
+					if let Some(dst) = self.buffer.get_mut(x, y) {
+						let color = shader.main(&p);
+						*dst = color;
+					}
+				}
+
+				x0 += slope;
+			}
+		}
 	}
 
 	pub fn draw_triangles<VS, FS, V, F, I>(&mut self, program: &mut Program<VS, FS, V, F, O>, vertices: I)
@@ -438,6 +554,44 @@ where
 			}
 			self.rasterize_triangle(&[&tri[0], &tri[1], &tri[2]], fragment_shader);
 			tri.clear();
+		}
+	}
+
+	pub fn draw_lines<VS, FS, V, F, I>(&mut self, program: &mut Program<VS, FS, V, F, O>, vertices: I)
+	where
+		VS: VertexShader<V, F>,
+		FS: FragmentShader<F, O>,
+		V: Vertex + std::fmt::Debug + 'a,
+		F: Varyings + std::fmt::Debug,
+		I: Iterator<Item = &'a V>,
+	{
+		let vertex_shader = &mut program.vertex_shader;
+		let fragment_shader = &mut program.fragment_shader;
+		vertex_shader.setup();
+
+		let mut line: Vec<F> = Vec::with_capacity(2);
+		for vertex in vertices {
+			line.push(vertex_shader.main(vertex));
+			if line.len() < 2 {
+				continue;
+			}
+
+			let mut p0 = *line[0].position();
+			let mut p1 = *line[1].position();
+
+			// Dirty hax
+			if p0.w == 0.0 {
+				p0.w = 0.000001;
+			}
+			if p1.w == 0.0 {
+				p1.w = 0.000001;
+			}
+
+			let p0 = na::Point3::from_homogeneous(p0).unwrap();
+			let p1 = na::Point3::from_homogeneous(p1).unwrap();
+
+			self.rasterize_line(&[&line[0], &line[1]], fragment_shader);
+			line.clear();
 		}
 	}
 
