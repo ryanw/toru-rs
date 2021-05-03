@@ -51,9 +51,12 @@ impl Camera for OrbitCamera {
 		mat *= na::Matrix4::new_translation(&na::Vector3::new(0.0, 0.0, -self.distance));
 		mat *= na::Matrix4::new_rotation(na::Vector3::new(self.rotation.y, 0.0, 0.0));
 		mat *= na::Matrix4::new_rotation(na::Vector3::new(0.0, self.rotation.x, 0.0));
-		mat *= na::Matrix4::new_translation(&self.target.coords.scale(-1.0));
+		// FIXME why is Z backwards?
+		let mut coords = self.target.coords.clone();
+		coords.z *= -1.0;
+		mat *= na::Matrix4::new_translation(&coords);
 		mat *= na::Rotation3::face_towards(
-			&na::Vector3::new(0.0, 0.0, -self.distance),
+			&na::Vector3::new(0.0, 0.0, self.distance),
 			&na::Vector3::new(0.0, -1.0, 0.0),
 		)
 		.to_homogeneous();
