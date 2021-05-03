@@ -462,22 +462,29 @@ where
 				std::mem::swap(&mut p0, &mut p1);
 			}
 
+			p0.x = if p0.x < p1.x { p0.x.floor() } else { p0.x.ceil() };
+			p1.x = if p0.x > p1.x { p1.x.floor() } else { p1.x.ceil() };
+			p0.y = if p0.y < p1.y { p0.y.floor() } else { p0.y.ceil() };
+			p1.y = if p0.y > p1.y { p1.y.floor() } else { p1.y.ceil() };
+
 			let dy = (p1.y - p0.y) + 1.0;
 			let slope = if dy == 0.0 { p1.x - p0.x } else { (p1.x - p0.x) / dy };
 
 			let mut x0 = p0.x;
 			for y in (p0.y as i32)..=(p1.y as i32) {
-				let x1 = if slope < 1.0 && slope > 0.0 {
-					x0 + 1.0
+				let x1 = if slope == 0.0 {
+					x0 + 0.5
+				} else if slope < 1.0 && slope > 0.0 {
+					x0 + 0.5
 				} else if slope > -1.0 && slope < 0.0 {
-					x0 - 1.0
+					x0 - 0.5
 				} else {
 					x0 + slope
 				};
 
 				// Range has to be small to big...
-				let mut x_range_lr = (x0 as i32)..(x1 as i32);
-				let mut x_range_rl = ((x1 as i32)..(x0 as i32)).rev();
+				let mut x_range_lr = (x0 as i32)..=(x1 as i32);
+				let mut x_range_rl = ((x1 as i32)..=(x0 as i32)).rev();
 				let x_range = if x0 < x1 {
 					&mut x_range_lr as &mut Iterator<Item = _>
 				} else {
@@ -548,7 +555,7 @@ where
 
 			// Backface cull
 			let winding = (p1 - p0).cross(&(p2 - p0));
-			if winding.z > 0.0 {
+			if winding.z >= 0.0 {
 				tri.clear();
 				continue;
 			}
