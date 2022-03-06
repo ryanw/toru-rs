@@ -507,7 +507,7 @@ where
 					}
 					if let Some(dst) = self.buffer.get_mut(x, y) {
 						let color = shader.main(&p);
-						*dst = color;
+						*dst = color.blend(dst);
 					}
 				}
 
