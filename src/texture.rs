@@ -19,6 +19,7 @@ pub struct Texture<P: Blendable> {
 	buffer: Buffer<P>,
 	wrap: TextureWrap,
 	filter: TextureFilter,
+	emissive: bool,
 }
 
 impl<P> Texture<P>
@@ -44,6 +45,7 @@ where
 			buffer,
 			wrap: TextureWrap::Clamp,
 			filter: TextureFilter::Bilinear,
+			emissive: false,
 		})
 	}
 }
@@ -57,6 +59,7 @@ where
 			buffer: Buffer::new(width, height),
 			wrap: TextureWrap::Clamp,
 			filter: TextureFilter::Bilinear,
+			emissive: false,
 		}
 	}
 
@@ -74,6 +77,18 @@ where
 
 	pub fn filter_mut(&mut self) -> &mut TextureFilter {
 		&mut self.filter
+	}
+
+	pub fn emissive(&self) -> bool {
+		self.emissive
+	}
+
+	pub fn emissive_mut(&mut self) -> &mut bool {
+		&mut self.emissive
+	}
+
+	pub fn set_emissive(&mut self, emissive: bool) {
+		self.emissive = emissive;
 	}
 
 	pub fn width(&self) -> u32 {
