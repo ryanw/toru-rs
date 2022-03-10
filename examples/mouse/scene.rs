@@ -1,3 +1,4 @@
+use std::f32::consts::PI;
 use super::shaders::*;
 use mutunga::Color;
 use toru::{Canvas, Mesh, OrbitCamera, StaticMesh};
@@ -29,6 +30,8 @@ impl MouseScene {
 		}
 
 		let mut camera = OrbitCamera::new(1.0, 1.0);
+		// Look at the monkey's face
+		camera.rotate(PI, 0.0);
 		camera.distance = 5.0;
 
 		MouseScene {
