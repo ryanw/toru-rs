@@ -673,6 +673,19 @@ impl<O: Blendable> Canvas<O> {
 		}
 	}
 
+	pub fn draw_double_pixels(&self, mut callback: impl FnMut(u32, u32, &O, &O)) {
+		let (w, h) = self.buffer.size();
+		for y in (0..h - 1).step_by(2) {
+			for x in 0..w {
+				if let Some(top_pixel) = self.buffer.get(x as i32, y as i32) {
+					if let Some(bot_pixel) = self.buffer.get(x as i32, y as i32 + 1) {
+						callback(x, y, top_pixel, bot_pixel);
+					}
+				}
+			}
+		}
+	}
+
 	pub fn context<'a>(&'a mut self) -> DrawContext<'a, O> {
 		DrawContext {
 			buffer: &mut self.buffer,
